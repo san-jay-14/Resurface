@@ -47,16 +47,34 @@ export interface Save {
   source_platform: SourcePlatform;
   source_url: string | null;
   category: SaveCategory;
+  title: string | null;          // phase 3: OG title from enrichment
   note: string | null;
   thumbnail_url: string | null;
   ai_description: string | null;
   keywords: string[] | null;
   status: SaveStatus;
   acted_on: boolean;
+  acted_on_at: string | null;    // phase 3: timestamp when acted_on flipped to true
+  is_favorite: boolean;          // phase 3: heart toggle
   archived: boolean;
   archived_at: string | null;
   created_at: string;
   last_interacted_at: string | null;
+}
+
+export interface Collection {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  save_count?: number; // joined/computed, not a real column
+}
+
+export interface CollectionSave {
+  collection_id: string;
+  save_id: string;
+  added_at: string;
 }
 
 export interface SaveLocation {

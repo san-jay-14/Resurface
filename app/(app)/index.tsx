@@ -1,91 +1,135 @@
+import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SaveCard } from "@/components/SaveCard";
-import type { Save, SaveCategory, SourcePlatform } from "@/lib/database.types";
+import { TabBar } from "@/components/TabBar";
+import type { Save, SaveCategory } from "@/lib/database.types";
 import { registerDeviceToken } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
 // ---------------------------------------------------------------------------
-// Filter data
+// Filter + sort config
 // ---------------------------------------------------------------------------
-const CATEGORY_FILTERS: { value: "all" | SaveCategory; label: string }[] = [
-  { value: "all",         label: "All" },
-  { value: "places",      label: "📍 Places" },
-  { value: "recipes",     label: "🍳 Recipes" },
-  { value: "fashion",     label: "👗 Fashion" },
-  { value: "shopping",    label: "🛍️ Shopping" },
-  { value: "watch_learn", label: "▶️ Watch" },
-  { value: "inspo",       label: "✨ Inspo" },
-  { value: "unsorted",    label: "🗂️ Unsorted" },
+const CATEGORY_FILTERS: { value: "all" | "not_done" | SaveCategory; label: string }[] = [
+  { value: "all",        label: "All" },
+  { value: "not_done",   label: "Not done" },
+  { value: "places",     label: "Places" },
+  { value: "recipes",    label: "Recipes" },
+  { value: "fashion",    label: "Fashion" },
+  { value: "shopping",   label: "Shopping" },
+  { value: "watch_learn",label: "Watch" },
+  { value: "inspo",      label: "Inspo" },
 ];
 
-const PLATFORM_FILTERS: { value: "all" | SourcePlatform; label: string }[] = [
-  { value: "all",       label: "All platforms" },
-  { value: "youtube",   label: "▶ YouTube" },
-  { value: "instagram", label: "📸 Instagram" },
-  { value: "web",       label: "🌐 Web" },
-  { value: "whatsapp",  label: "💬 WhatsApp" },
+type SortOption = "recent" | "oldest" | "not_done_first" | "fav_first";
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: "recent",        label: "Recent" },
+  { value: "oldest",        label: "Oldest" },
+  { value: "not_done_first",label: "Not done first" },
+  { value: "fav_first",     label: "Favorites first" },
 ];
 
+function applySortAndFilter(
+  saves: Save[],
+  filter: "all" | "not_done" | SaveCategory,
+  sort: SortOption,
+): Save[] {
+  let result = [...saves];
+
+  // Filter
+  if (filter === "not_done") {
+    result = result.filter((s) => !s.acted_on);
+  } else if (filter !== "all") {
+    result = result.filter((s) => s.category === filter);
+  }
+
+  // Sort
+  switch (sort) {
+    case "oldest":
+      result.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      break;
+    case "not_done_first":
+      result.sort((a, b) => {
+        if (a.acted_on !== b.acted_on) return a.acted_on ? 1 : -1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+      break;
+    case "fav_first":
+      result.sort((a, b) => {
+        if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+      break;
+    default: // recent
+      result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  return result;
+}
+
 // ---------------------------------------------------------------------------
-// Shared chip row — used for both filter bars
+// Sort sheet
 // ---------------------------------------------------------------------------
-function ChipRow<T extends string>({
-  chips,
-  active,
-  onChange,
+function SortSheet({
+  visible,
+  current,
+  onSelect,
+  onClose,
 }: {
-  chips: { value: T; label: string }[];
-  active: T;
-  onChange: (v: T) => void;
+  visible: boolean;
+  current: SortOption;
+  onSelect: (s: SortOption) => void;
+  onClose: () => void;
 }) {
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ gap: 8, paddingHorizontal: 24, paddingVertical: 6 }}
-    >
-      {chips.map((chip) => {
-        const selected = chip.value === active;
-        return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable className="flex-1 bg-black/40" onPress={onClose} />
+      <View className="bg-white rounded-t-3xl px-6 pt-5 pb-10">
+        <Text className="text-base font-semibold text-ink mb-4">Sort by</Text>
+        {SORT_OPTIONS.map((opt) => (
           <Pressable
-            key={chip.value}
-            onPress={() => onChange(chip.value)}
-            className={`rounded-full border px-3 py-1.5 ${
-              selected ? "border-coral bg-coral" : "border-line bg-white"
-            }`}
+            key={opt.value}
+            onPress={() => { onSelect(opt.value); onClose(); }}
+            className="flex-row items-center justify-between py-3.5 border-b border-line"
           >
-            <Text className={`text-sm font-medium ${selected ? "text-white" : "text-ink"}`}>
-              {chip.label}
-            </Text>
+            <Text className="text-sm text-ink">{opt.label}</Text>
+            {current === opt.value && (
+              <Text className="text-coral text-base">✓</Text>
+            )}
           </Pressable>
-        );
-      })}
-    </ScrollView>
+        ))}
+      </View>
+    </Modal>
   );
 }
 
 // ---------------------------------------------------------------------------
 // Main screen
 // ---------------------------------------------------------------------------
-export default function Home() {
-  const { profile, session, signOut } = useAuth();
+export default function Library() {
+  const { session } = useAuth();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [saves, setSaves] = useState<Save[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [categoryFilter, setCategoryFilter] = useState<"all" | SaveCategory>("all");
-  const [platformFilter, setPlatformFilter] = useState<"all" | SourcePlatform>("all");
+  const [filter, setFilter] = useState<"all" | "not_done" | SaveCategory>("all");
+  const [sort, setSort] = useState<SortOption>("recent");
+  const [sortVisible, setSortVisible] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
@@ -109,11 +153,11 @@ export default function Home() {
 
   useEffect(() => { void fetchSaves(); }, [session]);
 
-  // Realtime: patch individual cards as enrichment completes.
+  // Realtime: patch individual cards as enrichment or edits complete
   useEffect(() => {
     if (!session) return;
     const channel = supabase
-      .channel(`saves:${session.user.id}`)
+      .channel(`saves:lib:${session.user.id}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "saves", filter: `user_id=eq.${session.user.id}` },
@@ -134,75 +178,105 @@ export default function Home() {
     return () => { void supabase.removeChannel(channel); };
   }, [session]);
 
-  // Apply both filters (AND logic).
-  const filtered = saves.filter((s) => {
-    if (categoryFilter !== "all" && s.category !== categoryFilter) return false;
-    if (platformFilter !== "all" && s.source_platform !== platformFilter) return false;
-    return true;
-  });
+  // Optimistic favorite toggle
+  const handleFavorite = async (save: Save) => {
+    const next = !save.is_favorite;
+    setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: next } : s));
+    const { error } = await supabase
+      .from("saves")
+      .update({ is_favorite: next, last_interacted_at: new Date().toISOString() })
+      .eq("id", save.id);
+    if (error) {
+      // revert
+      setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: !next } : s));
+    }
+  };
 
-  const hasActiveFilter = categoryFilter !== "all" || platformFilter !== "all";
-  const firstName = profile?.name?.split(" ")[0];
+  const filtered = applySortAndFilter(saves, filter, sort);
 
   return (
     <View className="flex-1 bg-cream">
-      {/* Header */}
-      <View className="px-6 pt-14 pb-2">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-2xl font-extrabold text-ink">
-            {firstName ? `Hey ${firstName} 👋` : "Your saves"}
-          </Text>
-          <Pressable onPress={signOut}>
-            <Text className="text-sm text-muted">Sign out</Text>
-          </Pressable>
-        </View>
-        {profile?.home_city ? (
-          <Text className="mt-0.5 text-sm text-muted">{profile.home_city}</Text>
-        ) : null}
+      {/* Top bar */}
+      <View style={{ paddingTop: insets.top + 12 }} className="px-5 pb-3 flex-row items-center justify-between">
+        <Text className="text-xl font-bold text-ink">Library</Text>
+        <Pressable
+          onPress={() => setSortVisible(true)}
+          className="w-8 h-8 rounded-lg border border-line bg-white items-center justify-center"
+        >
+          <Text style={{ fontSize: 16 }}>⇅</Text>
+        </Pressable>
       </View>
 
-      {/* Category filter */}
-      <ChipRow
-        chips={CATEGORY_FILTERS}
-        active={categoryFilter}
-        onChange={setCategoryFilter}
-      />
+      {/* Tappable search bar */}
+      <Pressable
+        onPress={() => router.replace("/(app)/search" as never)}
+        className="mx-5 mb-3 flex-row items-center gap-2 bg-sand rounded-xl px-3 py-2.5"
+      >
+        <Text className="text-muted" style={{ fontSize: 14 }}>🔍</Text>
+        <Text className="text-muted text-sm">Search your saves</Text>
+      </Pressable>
 
-      {/* Platform filter */}
-      <ChipRow
-        chips={PLATFORM_FILTERS}
-        active={platformFilter}
-        onChange={setPlatformFilter}
-      />
+      {/* Filter chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{
+          flexDirection: "row",
+          alignItems: "center",
+          paddingHorizontal: 20,
+          paddingTop: 2,
+          paddingBottom: 12,
+        }}
+      >
+        {CATEGORY_FILTERS.map((chip, i) => {
+          const active = chip.value === filter;
+          return (
+            <Pressable
+              key={chip.value}
+              onPress={() => setFilter(chip.value)}
+              style={{
+                marginRight: i < CATEGORY_FILTERS.length - 1 ? 7 : 0,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 99,
+                borderWidth: 1,
+                borderColor: active ? "#1C1714" : "#E7DBCF",
+                backgroundColor: active ? "#1C1714" : "#FFFFFF",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: "500",
+                  color: active ? "#FFFFFF" : "#8A7E74",
+                }}
+              >
+                {chip.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
-      {/* Divider */}
-      <View className="mx-6 h-px bg-line" />
-
-      {/* Library */}
+      {/* Content */}
       {loading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#FF6B4A" size="large" />
         </View>
       ) : filtered.length === 0 ? (
         <View className="flex-1 items-center justify-center px-10">
-          <Text className="text-4xl">{hasActiveFilter ? "🔍" : "📭"}</Text>
+          <Text className="text-4xl">{filter !== "all" ? "🔍" : "📭"}</Text>
           <Text className="mt-4 text-center text-base font-semibold text-ink">
-            {hasActiveFilter ? "No matches" : "Nothing here yet"}
+            {filter !== "all" ? "No matches" : "Nothing here yet"}
           </Text>
           <Text className="mt-2 text-center text-sm leading-5 text-muted">
-            {hasActiveFilter
-              ? "Try changing the filters above."
+            {filter !== "all"
+              ? "Try a different filter."
               : "Share a link or Instagram post into Resurface and it'll appear here."}
           </Text>
-          {hasActiveFilter && (
-            <Pressable
-              className="mt-4"
-              onPress={() => {
-                setCategoryFilter("all");
-                setPlatformFilter("all");
-              }}
-            >
-              <Text className="text-sm font-semibold text-coral">Clear filters</Text>
+          {filter !== "all" && (
+            <Pressable className="mt-4" onPress={() => setFilter("all")}>
+              <Text className="text-sm font-semibold text-coral">Clear filter</Text>
             </Pressable>
           )}
         </View>
@@ -211,7 +285,7 @@ export default function Home() {
           data={filtered}
           keyExtractor={(item) => item.id}
           numColumns={2}
-          contentContainerStyle={{ padding: 16, gap: 12 }}
+          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 8 }}
           columnWrapperStyle={{ gap: 12 }}
           refreshControl={
             <RefreshControl
@@ -222,12 +296,25 @@ export default function Home() {
           }
           renderItem={({ item }) => (
             <View className="flex-1">
-              <SaveCard save={item} />
+              <SaveCard
+                save={item}
+                onPress={() => router.push({ pathname: "/(app)/save/[id]", params: { id: item.id } } as never)}
+                onFavorite={() => void handleFavorite(item)}
+              />
             </View>
           )}
           ListFooterComponent={filtered.length % 2 !== 0 ? <View className="flex-1" /> : null}
         />
       )}
+
+      <SortSheet
+        visible={sortVisible}
+        current={sort}
+        onSelect={setSort}
+        onClose={() => setSortVisible(false)}
+      />
+
+      <TabBar active="library" />
     </View>
   );
 }

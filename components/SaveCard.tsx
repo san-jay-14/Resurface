@@ -1,100 +1,133 @@
-import { ActivityIndicator, Image, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, Text, View } from "react-native";
 
-import type { Save } from "@/lib/database.types";
+import type { Save, SaveCategory } from "@/lib/database.types";
 
-const CATEGORY_META: Record<string, { emoji: string; label: string }> = {
-  places:     { emoji: "📍", label: "Places" },
-  recipes:    { emoji: "🍳", label: "Recipes" },
-  fashion:    { emoji: "👗", label: "Fashion" },
-  shopping:   { emoji: "🛍️", label: "Shopping" },
-  watch_learn:{ emoji: "▶️", label: "Watch / Learn" },
-  inspo:      { emoji: "✨", label: "Inspo" },
-  unsorted:   { emoji: "🗂️", label: "Unsorted" },
+// Category visual palette — light tint bg + darker text from same family
+export const CATEGORY_COLORS: Record<SaveCategory, { bg: string; text: string }> = {
+  places:     { bg: "#E1F5EE", text: "#0F6E56" },
+  recipes:    { bg: "#FAEEDA", text: "#854F0B" },
+  fashion:    { bg: "#FBEAF0", text: "#993556" },
+  shopping:   { bg: "#E6F1FB", text: "#185FA5" },
+  watch_learn:{ bg: "#EBF0FB", text: "#1A5DAB" },
+  inspo:      { bg: "#EEEDFE", text: "#3C3489" },
+  unsorted:   { bg: "#F2F2F0", text: "#666666" },
 };
 
-const PLATFORM_LABEL: Record<string, string> = {
-  instagram: "Instagram",
-  youtube:   "YouTube",
-  web:       "Web",
-  whatsapp:  "WhatsApp",
-  unsorted:  "Unknown",
+export const CATEGORY_EMOJI: Record<SaveCategory, string> = {
+  places:     "📍",
+  recipes:    "🍳",
+  fashion:    "👗",
+  shopping:   "🛍️",
+  watch_learn:"▶️",
+  inspo:      "✨",
+  unsorted:   "🗂️",
 };
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return `${Math.floor(days / 7)}w ago`;
+export const CATEGORY_LABEL: Record<SaveCategory, string> = {
+  places:     "Places",
+  recipes:    "Recipes",
+  fashion:    "Fashion",
+  shopping:   "Shopping",
+  watch_learn:"Watch",
+  inspo:      "Inspo",
+  unsorted:   "Unsorted",
+};
+
+// Category-aware "acted on" verb
+export const ACTED_ON_VERB: Record<SaveCategory, string> = {
+  places:     "Visited",
+  recipes:    "Cooked",
+  fashion:    "Tried",
+  shopping:   "Bought",
+  watch_learn:"Watched",
+  inspo:      "Done",
+  unsorted:   "Done",
+};
+
+export function getSaveTitle(save: Save): string {
+  if (save.title) return save.title;
+  if (save.ai_description) return save.ai_description;
+  if (save.source_url) {
+    try { return new URL(save.source_url).hostname.replace(/^www\./, ""); }
+    catch { /* fall through */ }
+  }
+  return "Saved item";
 }
 
 interface SaveCardProps {
   save: Save;
+  onPress?: () => void;
+  onFavorite?: () => void;
 }
 
-export function SaveCard({ save }: SaveCardProps) {
-  const meta = CATEGORY_META[save.category] ?? CATEGORY_META.unsorted;
+export function SaveCard({ save, onPress, onFavorite }: SaveCardProps) {
+  const colors = CATEGORY_COLORS[save.category] ?? CATEGORY_COLORS.unsorted;
+  const emoji  = CATEGORY_EMOJI[save.category]  ?? CATEGORY_EMOJI.unsorted;
+  const label  = CATEGORY_LABEL[save.category]  ?? "Unsorted";
+  const verb   = ACTED_ON_VERB[save.category]   ?? "Done";
   const isPending = save.status === "pending";
-  const body = save.ai_description ?? save.note;
+  const title  = getSaveTitle(save);
 
   return (
-    <View className="rounded-card border border-line bg-white overflow-hidden">
-      {/* Thumbnail or text-card header */}
-      {save.thumbnail_url ? (
-        <View className="h-36 w-full bg-sand">
+    <Pressable onPress={onPress} className="rounded-card overflow-hidden bg-white border border-line">
+      {/* Thumbnail area */}
+      <View className="relative" style={{ height: 96 }}>
+        {save.thumbnail_url ? (
           <Image
             source={{ uri: save.thumbnail_url }}
-            className="h-full w-full"
+            className="w-full h-full"
             resizeMode="cover"
           />
-          {isPending && (
-            <View className="absolute inset-0 items-center justify-center bg-black/30">
-              <ActivityIndicator color="#fff" size="small" />
-            </View>
-          )}
-        </View>
-      ) : (
-        <View className="h-24 w-full items-center justify-center bg-coral-soft">
-          <Text className="text-3xl">{meta.emoji}</Text>
-          {isPending && (
-            <ActivityIndicator
-              color="#FF6B4A"
-              size="small"
-              className="mt-1"
-            />
-          )}
-        </View>
-      )}
-
-      {/* Card body */}
-      <View className="gap-1.5 p-3">
-        {/* Category pill + time */}
-        <View className="flex-row items-center justify-between">
-          <View className="flex-row items-center gap-1 rounded-full bg-sand px-2 py-0.5">
-            <Text className="text-xs">{meta.emoji}</Text>
-            <Text className="text-xs font-medium text-ink">{meta.label}</Text>
+        ) : (
+          <View
+            className="w-full h-full items-center justify-center"
+            style={{ backgroundColor: colors.bg }}
+          >
+            <Text style={{ fontSize: 28 }}>{emoji}</Text>
+            {isPending && (
+              <ActivityIndicator color={colors.text} size="small" className="mt-1" />
+            )}
           </View>
-          <Text className="text-xs text-muted">{timeAgo(save.created_at)}</Text>
-        </View>
+        )}
 
-        {/* Description / note */}
-        {isPending ? (
-          <Text className="text-xs text-muted">Categorising…</Text>
-        ) : body ? (
-          <Text className="text-xs leading-4 text-ink" numberOfLines={2}>
-            {body}
-          </Text>
+        {/* Pending overlay on thumbnail */}
+        {isPending && save.thumbnail_url ? (
+          <View className="absolute inset-0 items-center justify-center bg-black/30">
+            <ActivityIndicator color="#fff" size="small" />
+          </View>
         ) : null}
 
-        {/* Source badge */}
+        {/* Favorite heart — top right */}
+        <Pressable
+          onPress={(e) => { e.stopPropagation?.(); onFavorite?.(); }}
+          hitSlop={8}
+          className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white/90 items-center justify-center"
+        >
+          <Text style={{ fontSize: 13, color: save.is_favorite ? "#D4537E" : "#B0A49A" }}>
+            {save.is_favorite ? "♥" : "♡"}
+          </Text>
+        </Pressable>
+
+        {/* Acted-on badge — bottom left */}
+        {save.acted_on ? (
+          <View
+            className="absolute bottom-1.5 left-1.5 flex-row items-center px-1.5 py-0.5 rounded-full"
+            style={{ backgroundColor: "#EAF3DE" }}
+          >
+            <Text style={{ fontSize: 10, color: "#3B6D11" }}>✓ {verb}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* Card body */}
+      <View className="px-2.5 pb-2.5 pt-2 gap-0.5">
+        <Text className="text-xs font-medium text-ink leading-4" numberOfLines={2}>
+          {title}
+        </Text>
         <Text className="text-xs text-muted">
-          {PLATFORM_LABEL[save.source_platform] ?? "Unknown"}
+          {label}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
