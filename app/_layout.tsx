@@ -1,6 +1,7 @@
 import "../global.css";
 
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, useRouter, useSegments, type Href } from "expo-router";
+import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -18,24 +19,28 @@ function Loading() {
 
 /**
  * Routing gate (spec §6 order: auth → onboarding → app).
- * Redirects whenever auth/onboarding state and the current route group disagree.
+ * Share intent takes priority once the user is authenticated + onboarded.
  */
 function RootNavigator() {
   const { session, profile, initializing } = useAuth();
+  const { hasShareIntent } = useShareIntentContext();
   const segments = useSegments();
   const router = useRouter();
 
-  // While a session exists but its profile row hasn't loaded yet, hold — this
-  // avoids flashing onboarding at returning users before we know their state.
-  const resolving = initializing || (!!session && !profile);
+  // Only block on initializing — loadProfile is awaited before initializing
+  // is set to false, so the profile result is already known by then.
+  // Do NOT include profileLoading here: toggling resolving unmounts the Stack
+  // and resets navigation to the first route in the group.
+  const resolving = initializing;
 
   useEffect(() => {
     if (resolving) return;
 
-    const group = segments[0];
+    const group = segments[0] as string | undefined;
     const inAuth = group === "(auth)";
     const inOnboarding = group === "(onboarding)";
     const inApp = group === "(app)";
+    const inShare = group === "(share)";
 
     if (!session) {
       if (!inAuth) router.replace("/(auth)/sign-in");
@@ -48,8 +53,14 @@ function RootNavigator() {
       return;
     }
 
+    // Route to share screen while an intent is pending (spec §3.2).
+    if (hasShareIntent) {
+      if (!inShare) router.replace("/(share)" as Href);
+      return;
+    }
+
     if (!inApp) router.replace("/(app)");
-  }, [resolving, session, profile, segments, router]);
+  }, [resolving, session, profile, segments, router, hasShareIntent]);
 
   if (resolving) return <Loading />;
 
@@ -67,8 +78,10 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <StatusBar style="dark" />
-        <RootNavigator />
+        <ShareIntentProvider>
+          <StatusBar style="dark" />
+          <RootNavigator />
+        </ShareIntentProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );

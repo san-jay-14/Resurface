@@ -14,7 +14,10 @@ create policy "users read own profile"
   on public.users for select using (auth.uid() = id);
 create policy "users update own profile"
   on public.users for update using (auth.uid() = id) with check (auth.uid() = id);
--- INSERT happens via the SECURITY DEFINER signup trigger, not from the client.
+-- INSERT via trigger on signup; also allowed from client as a fallback so that
+-- users who signed up before migrations were applied can still create their row.
+create policy "users insert own profile"
+  on public.users for insert with check (auth.uid() = id);
 
 -- ---- saves -----------------------------------------------------------------
 create policy "saves owner all"

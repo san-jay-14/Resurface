@@ -2,7 +2,17 @@ import "react-native-url-polyfill/auto";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
+import * as ExpoCrypto from "expo-crypto";
 import { AppState } from "react-native";
+
+// Supabase's PKCE flow needs crypto.subtle.digest for SHA-256.
+// Hermes doesn't expose it, so polyfill it with expo-crypto.
+if (typeof globalThis.crypto === "undefined") {
+  (globalThis as unknown as Record<string, unknown>).crypto = ExpoCrypto;
+} else if (typeof globalThis.crypto.subtle === "undefined") {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis.crypto as any).subtle = (ExpoCrypto as any).subtle;
+}
 
 import { env } from "./env";
 

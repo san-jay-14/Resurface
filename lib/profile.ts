@@ -17,10 +17,11 @@ export async function updateProfile(
     >
   >,
 ): Promise<UserProfile> {
+  // Upsert so the row is created if the handle_new_user trigger missed this
+  // user (e.g. they signed up before migrations were applied).
   const { data, error } = await supabase
     .from("users")
-    .update(patch)
-    .eq("id", userId)
+    .upsert({ id: userId, ...patch }, { onConflict: "id" })
     .select("*")
     .single();
   if (error) throw error;
