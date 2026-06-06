@@ -1,12 +1,15 @@
 import "../global.css";
+import "@/lib/notifications"; // side-effect: sets the foreground notification handler
 
+import * as Notifications from "expo-notifications";
 import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { supabase } from "@/lib/supabase";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
 
 function Loading() {
@@ -61,6 +64,38 @@ function RootNavigator() {
 
     if (!inApp) router.replace("/(app)");
   }, [resolving, session, profile, segments, router, hasShareIntent]);
+
+  // Notification tap handler — runs for background→foreground taps and cold starts.
+  // `useLastNotificationResponse` re-fires on every new tap; the ref prevents
+  // replaying the same notification if the component re-renders.
+  const lastResponse = Notifications.useLastNotificationResponse();
+  const handledNotifId = useRef<string | null>(null);
+
+  useEffect(() => {
+    // Wait until auth/onboarding routing has settled so the push doesn't
+    // land the user on a save before the routing gate fires.
+    if (resolving || !lastResponse) return;
+
+    const notifId = lastResponse.notification.request.identifier;
+    if (handledNotifId.current === notifId) return;
+    handledNotifId.current = notifId;
+
+    const data = lastResponse.notification.request.content.data as {
+      save_id?: string;
+      log_id?: string;
+    };
+
+    if (data.save_id) {
+      router.push({ pathname: "/(app)/save/[id]", params: { id: data.save_id } } as never);
+    }
+
+    if (data.log_id) {
+      void supabase
+        .from("notification_log")
+        .update({ tapped: true })
+        .eq("id", data.log_id);
+    }
+  }, [resolving, lastResponse]);
 
   if (resolving) return <Loading />;
 

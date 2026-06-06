@@ -6,6 +6,17 @@ import { Platform } from "react-native";
 import { env } from "./env";
 import { supabase } from "./supabase";
 
+// Show notifications even when the app is in the foreground.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
 /** Create the default Android notification channel (no-op elsewhere). */
 export async function ensureAndroidChannel() {
   if (Platform.OS !== "android") return;
