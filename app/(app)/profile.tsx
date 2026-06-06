@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { TabBar } from "@/components/TabBar";
@@ -45,7 +45,7 @@ function SettingsRow({
 }
 
 export default function ProfileScreen() {
-  const { profile, signOut } = useAuth();
+  const { profile, session, signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const [stats, setStats] = useState<Stats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
@@ -79,7 +79,20 @@ export default function ProfileScreen() {
     void fetchStats();
   }, [profile]);
 
-  const initials = (profile?.name ?? "?")
+  // Google (and other OAuth) providers store user info in user_metadata.
+  // Supabase normalises Google's `picture` → `avatar_url` and `name` / `full_name`.
+  const meta = session?.user?.user_metadata ?? {};
+  const displayName: string =
+    profile?.name ??
+    (meta.full_name as string | undefined) ??
+    (meta.name as string | undefined) ??
+    "You";
+  const avatarUrl: string | null =
+    (meta.avatar_url as string | undefined) ??
+    (meta.picture as string | undefined) ??
+    null;
+
+  const initials = displayName
     .split(" ")
     .map((w) => w[0]?.toUpperCase() ?? "")
     .slice(0, 2)
@@ -103,11 +116,22 @@ export default function ProfileScreen() {
         <View className="px-5">
           {/* Avatar + name */}
           <View className="flex-row items-center gap-4 mb-5">
-            <View className="w-14 h-14 rounded-full items-center justify-center" style={{ backgroundColor: "#EEEDFE" }}>
-              <Text className="text-lg font-semibold text-ink">{initials}</Text>
+            <View
+              className="w-14 h-14 rounded-full overflow-hidden items-center justify-center"
+              style={{ backgroundColor: "#EEEDFE" }}
+            >
+              {avatarUrl ? (
+                <Image
+                  source={{ uri: avatarUrl }}
+                  className="w-full h-full"
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text className="text-lg font-semibold text-ink">{initials}</Text>
+              )}
             </View>
             <View>
-              <Text className="text-base font-semibold text-ink">{profile?.name ?? "You"}</Text>
+              <Text className="text-base font-semibold text-ink">{displayName}</Text>
               {profile?.home_city ? (
                 <Text className="text-xs text-muted">{profile.home_city}</Text>
               ) : null}

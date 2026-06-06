@@ -340,10 +340,17 @@ export default function SaveDetail() {
                 placeholder="Why did you save this?"
                 placeholderTextColor="#8A7E74"
                 className="text-sm text-ink leading-5 min-h-16"
-                onBlur={saveNote}
                 autoFocus
               />
-              <Text className="text-xs text-muted text-right mt-1">{noteText.length}/280</Text>
+              <View className="flex-row items-center justify-between mt-2">
+                <Text className="text-xs text-muted">{noteText.length}/280</Text>
+                <Pressable
+                  onPress={saveNote}
+                  className="bg-coral rounded-lg px-4 py-1.5"
+                >
+                  <Text className="text-white text-xs font-semibold">Save</Text>
+                </Pressable>
+              </View>
             </View>
           ) : (
             <Pressable
