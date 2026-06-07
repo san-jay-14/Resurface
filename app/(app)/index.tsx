@@ -15,6 +15,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SaveCard } from "@/components/SaveCard";
 import { TabBar } from "@/components/TabBar";
 import type { Save, SaveCategory } from "@/lib/database.types";
+import {
+  dismissLocationPrompt,
+  getLocationPermissionStatus,
+  isLocationPromptDismissed,
+  requestLocationPermission,
+} from "@/lib/location";
 import { registerDeviceToken } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
@@ -130,6 +136,7 @@ export default function Library() {
   const [filter, setFilter] = useState<"all" | "not_done" | SaveCategory>("all");
   const [sort, setSort] = useState<SortOption>("recent");
   const [sortVisible, setSortVisible] = useState(false);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
@@ -152,6 +159,19 @@ export default function Library() {
   };
 
   useEffect(() => { void fetchSaves(); }, [session]);
+
+  // Contextual location prompt: show after 3+ Places saves, once, if permission not granted.
+  useEffect(() => {
+    const placesCount = saves.filter((s) => s.category === "places").length;
+    if (placesCount < 3) return;
+    void (async () => {
+      const [status, dismissed] = await Promise.all([
+        getLocationPermissionStatus(),
+        isLocationPromptDismissed(),
+      ]);
+      if (status !== "granted" && !dismissed) setShowLocationPrompt(true);
+    })();
+  }, [saves]);
 
   // Realtime: patch individual cards as enrichment or edits complete
   useEffect(() => {
@@ -215,6 +235,42 @@ export default function Library() {
         <Text className="text-muted" style={{ fontSize: 14 }}>🔍</Text>
         <Text className="text-muted text-sm">Search your saves</Text>
       </Pressable>
+
+      {/* Contextual location permission prompt */}
+      {showLocationPrompt && (
+        <View className="mx-5 mb-3 rounded-2xl overflow-hidden" style={{ backgroundColor: "#E1F5EE" }}>
+          <View className="px-4 py-3">
+            <Text className="text-sm font-semibold text-ink mb-0.5">
+              📍 Resurface you when you're there
+            </Text>
+            <Text className="text-xs text-muted leading-4">
+              You've saved {saves.filter((s) => s.category === "places").length} places. Allow location so we can remind you when you're nearby.
+            </Text>
+            <View className="flex-row gap-2 mt-2.5">
+              <Pressable
+                onPress={async () => {
+                  const granted = await requestLocationPermission();
+                  setShowLocationPrompt(false);
+                  await dismissLocationPrompt();
+                  if (!granted) return;
+                }}
+                className="bg-ink rounded-lg px-4 py-1.5"
+              >
+                <Text className="text-white text-xs font-semibold">Turn on</Text>
+              </Pressable>
+              <Pressable
+                onPress={async () => {
+                  setShowLocationPrompt(false);
+                  await dismissLocationPrompt();
+                }}
+                className="px-4 py-1.5"
+              >
+                <Text className="text-xs text-muted">Not now</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* Filter chips */}
       <ScrollView

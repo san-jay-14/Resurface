@@ -6,9 +6,10 @@ import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { AppState, type AppStateStatus, ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { detectAndUpdateCity } from "@/lib/location";
 import { supabase } from "@/lib/supabase";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
 
@@ -64,6 +65,22 @@ function RootNavigator() {
 
     if (!inApp) router.replace("/(app)");
   }, [resolving, session, profile, segments, router, hasShareIntent]);
+
+  // City detection — runs on every app foreground event (not on every render).
+  // Updates users.current_city so the daily cron can fire the new-city trigger.
+  const lastAppState = useRef<AppStateStatus>(AppState.currentState);
+  useEffect(() => {
+    if (!session) return;
+    const sub = AppState.addEventListener("change", (next) => {
+      if (lastAppState.current !== "active" && next === "active") {
+        void detectAndUpdateCity(session.user.id);
+      }
+      lastAppState.current = next;
+    });
+    // Also run once on mount (covers cold start)
+    void detectAndUpdateCity(session.user.id);
+    return () => sub.remove();
+  }, [session]);
 
   // Notification tap handler — runs for background→foreground taps and cold starts.
   // `useLastNotificationResponse` re-fires on every new tap; the ref prevents

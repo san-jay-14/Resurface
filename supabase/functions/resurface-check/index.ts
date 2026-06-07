@@ -23,7 +23,7 @@ const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-type TriggerType   = "long_weekend" | "birthday";
+type TriggerType   = "long_weekend" | "birthday" | "new_city";
 type SaveCategory  = "places" | "recipes" | "fashion" | "shopping" | "watch_learn" | "inspo" | "unsorted";
 
 interface UserRow {
@@ -297,6 +297,24 @@ Write exactly 1–2 sentences. Rules:
 Example style: "Your birthday's in 8 days 🎂 You saved that silk co-ord 3 weeks ago — might be the moment."
 
 Return ONLY the notification body. Nothing else.`,
+
+    new_city: `You're writing a push notification for Resurface, a personal save organizer.
+
+Situation: ${firstName || "the user"} has just arrived in ${trigger.label}.
+
+They saved these places in ${trigger.label} that they haven't visited yet:
+${saveList}
+
+Write exactly 1–2 sentences. Rules:
+- Sound like a friend who noticed they're finally in the city they've been planning to visit
+- Be specific — mention a real detail from the saved place
+- Keep it warm and casual, not corporate
+- Max 120 characters total
+- No hashtags, no bullet points
+
+Example style: "You're in Pondicherry! You saved that rooftop café 3 weeks ago — still want to go?"
+
+Return ONLY the notification body. Nothing else.`,
   };
 
   try {
@@ -518,6 +536,117 @@ async function runBirthdayTrigger(
   return { usersEvaluated: birthdayUsers.length, sent };
 }
 
+async function runNewCityTrigger(
+  admin: SupabaseClient,
+): Promise<Record<string, unknown>> {
+  // Find users who are currently in a different city than their home.
+  const { data: travelers } = await admin
+    .from("users")
+    .select("id, name, home_city, current_city")
+    .not("current_city", "is", null)
+    .not("home_city", "is", null);
+
+  const awayUsers = (travelers ?? []).filter(
+    (u) =>
+      (u.current_city as string).toLowerCase() !==
+      (u.home_city as string).toLowerCase(),
+  );
+
+  if (awayUsers.length === 0) return { skipped: true, reason: "no_users_away" };
+
+  log("new_city_trigger_running", { userCount: awayUsers.length });
+
+  let totalSent = 0;
+
+  for (const user of awayUsers) {
+    const currentCity = user.current_city as string;
+
+    // Find Places saves in save_locations matching the current city
+    const { data: locationMatches } = await admin
+      .from("save_locations")
+      .select("save_id")
+      .ilike("city", currentCity);
+
+    const matchedSaveIds = (locationMatches ?? []).map((r) => r.save_id as string);
+    if (matchedSaveIds.length === 0) continue;
+
+    // Confirm those saves are un-acted-on Places saves owned by this user
+    const { data: eligibleSaves } = await admin
+      .from("saves")
+      .select("id, user_id, category, title, ai_description, note, acted_on, is_favorite, created_at")
+      .eq("user_id", user.id)
+      .eq("category", "places")
+      .eq("acted_on", false)
+      .eq("archived", false)
+      .in("id", matchedSaveIds)
+      .order("is_favorite", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (!eligibleSaves || eligibleSaves.length === 0) continue;
+
+    const trigger: TriggerContext = {
+      type:       "new_city",
+      categories: ["places"],
+      label:      currentCity,
+    };
+
+    // Run throttle + freshness gates (skip relevance — we already have saves)
+    const guard = await runGuardPipeline(admin, user.id as string, ["places"]);
+    if (!guard.pass) {
+      log("new_city_guard_failed", { userId: user.id, reason: guard.reason });
+      continue;
+    }
+
+    // Use the city-matched saves, not the generic guard saves
+    const topSaves = (eligibleSaves as SaveRow[]).slice(0, 2);
+    const firstName = (user.name as string | null)?.split(" ")[0] ?? "";
+
+    const { data: tokens } = await admin
+      .from("device_tokens")
+      .select("expo_push_token")
+      .eq("user_id", user.id);
+
+    const pushTokens = (tokens ?? []).map((t) => t.expo_push_token as string).filter(Boolean);
+    if (pushTokens.length === 0) continue;
+
+    const copy = await generateCopy(trigger, topSaves, firstName);
+    if (!copy) continue;
+
+    const { data: logRow } = await admin
+      .from("notification_log")
+      .insert({
+        user_id:      user.id,
+        save_ids:     topSaves.map((s) => s.id),
+        trigger_type: "new_city",
+        copy,
+        sent_at:      new Date().toISOString(),
+        tapped:       false,
+      })
+      .select("id")
+      .single();
+
+    const logId = (logRow as { id: string } | null)?.id ?? null;
+
+    const messages: ExpoPushMessage[] = pushTokens.map((token) => ({
+      to:    token,
+      title: "Resurface",
+      body:  copy,
+      data:  { save_id: topSaves[0].id, log_id: logId, trigger_type: "new_city" },
+      sound: "default",
+      priority: "normal" as const,
+    }));
+
+    await sendExpoPush(messages);
+    await admin.from("users").update({ last_notified_at: new Date().toISOString() }).eq("id", user.id);
+
+    log("new_city_notification_sent", { userId: user.id, city: currentCity, saveCount: topSaves.length });
+    totalSent++;
+  }
+
+  return { usersEvaluated: awayUsers.length, sent: totalSent };
+}
+
 // ---------------------------------------------------------------------------
 // ENTRY POINT
 // ---------------------------------------------------------------------------
@@ -547,12 +676,13 @@ Deno.serve(async (req: Request) => {
 
   log("timing_ok", { istHour: nowIST.getUTCHours() });
 
-  const [longWeekendResult, birthdayResult] = await Promise.all([
+  const [longWeekendResult, birthdayResult, newCityResult] = await Promise.all([
     runLongWeekendTrigger(admin, nowIST),
     runBirthdayTrigger(admin, nowIST),
+    runNewCityTrigger(admin),
   ]);
 
-  const summary = { long_weekend: longWeekendResult, birthday: birthdayResult };
+  const summary = { long_weekend: longWeekendResult, birthday: birthdayResult, new_city: newCityResult };
   log("resurface_check_complete", { summary });
 
   return Response.json({ ok: true, ...summary });

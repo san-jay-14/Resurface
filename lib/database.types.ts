@@ -34,6 +34,10 @@ export interface UserProfile {
   home_city: string | null;
   home_city_lat: number | null;
   home_city_lng: number | null;
+  current_city: string | null;
+  current_city_lat: number | null;
+  current_city_lng: number | null;
+  current_city_updated_at: string | null;
   notif_frequency_pref: string;
   last_notified_at: string | null;
   is_guest: boolean;
