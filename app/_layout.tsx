@@ -90,10 +90,13 @@ function RootNavigator() {
     }
 
     if (data.log_id) {
-      void supabase
+      supabase
         .from("notification_log")
         .update({ tapped: true })
-        .eq("id", data.log_id);
+        .eq("id", data.log_id)
+        .then(({ error }) => {
+          if (error) console.warn("[Notif] Failed to mark tapped:", error.message);
+        });
     }
   }, [resolving, lastResponse]);
 

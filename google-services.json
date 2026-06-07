@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "715300296955",
+    "project_id": "resurface-e0cec",
+    "storage_bucket": "resurface-e0cec.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:715300296955:android:5c23b132a617c3fdd4785e",
+        "android_client_info": {
+          "package_name": "com.resurface.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDd5X61VqqDUdGoK8b2ZwS9yOJZ9BgAEME"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

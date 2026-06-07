@@ -337,20 +337,36 @@ async function sendExpoPush(messages: ExpoPushMessage[]): Promise<void> {
   const resp = await fetch("https://exp.host/--/api/v2/push/send", {
     method: "POST",
     headers: {
-      "Content-Type":  "application/json",
-      "Accept":        "application/json",
+      "Content-Type":    "application/json",
+      "Accept":          "application/json",
       "Accept-Encoding": "gzip, deflate",
     },
     body: JSON.stringify(messages),
   });
 
   if (!resp.ok) {
-    log("expo_push_error", { status: resp.status, body: await resp.text() });
+    log("expo_push_http_error", { status: resp.status, body: await resp.text() });
     return;
   }
 
-  const result = await resp.json();
-  log("expo_push_sent", { count: messages.length, result });
+  // Expo always returns 200 — per-token errors are inside data[].status.
+  const result = await resp.json() as { data: Array<{ status: string; message?: string; details?: unknown }> };
+  const tickets = result.data ?? [];
+
+  tickets.forEach((ticket, i) => {
+    if (ticket.status === "error") {
+      log("expo_push_token_error", {
+        token: messages[i]?.to.slice(0, 32),
+        message: ticket.message,
+        details: ticket.details,
+      });
+    } else {
+      log("expo_push_token_ok", { token: messages[i]?.to.slice(0, 32) });
+    }
+  });
+
+  const errorCount = tickets.filter((t) => t.status === "error").length;
+  log("expo_push_done", { sent: tickets.length, errors: errorCount });
 }
 
 // ---------------------------------------------------------------------------

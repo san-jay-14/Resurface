@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=wsnrkbldvrzyqnqexcvo&features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching%2Cstorage"
+    }
+  },
+  "permissions": {
+    "allow": [
+      "Bash(find /d/saas -maxdepth 2 -type f \\\\\\( -iname \"*spec*\" -o -iname \"*resurface*\" -o -iname \"*.md\" \\\\\\) 2>/dev/null | head -30; echo \"---DOWNLOADS---\"; find /c/Users/santh/Downloads /c/Users/santh/Documents /c/Users/santh/Desktop -maxdepth 2 -type f \\\\\\( -iname \"*spec*\" -o -iname \"*resurface*\" \\\\\\) 2>/dev/null | head -30)",
+      "mcp__claude_ai_Google_Drive__search_files",
+      "Bash(npm --version)",
+      "Bash(echo \"npm: $\\(npm --version\\)\")",
+      "Bash(npx --version)",
+      "Bash(echo \"npx: $\\(npx --version\\)\")",
+      "Bash(git -C \"d:/saas/Resurface\" config user.name)",
+      "Bash(npx --yes create-expo-app@latest _scaffold --template blank-typescript --no-install)",
+      "Bash(npm install *)",
+      "Bash(npx expo *)",
+      "Bash(npm uninstall *)",
+      "Bash(EXPO_PUBLIC_SUPABASE_URL=https://x.supabase.co EXPO_PUBLIC_SUPABASE_ANON_KEY=test npx expo export --platform android --output-dir dist)",
+      "Bash(git add *)",
+      "Bash(git -c core.quotepath=false status --short)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(p.dependencies['expo-share-intent']\\)\")",
+      "Bash(npx tsc *)",
+      "WebFetch(domain:github.com)",
+      "Bash(node node_modules/expo/bin/cli config --json)"
+    ]
+  }
+}

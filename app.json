@@ -13,6 +13,7 @@
       "usesAppleSignIn": true
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "package": "com.resurface.app",
       "adaptiveIcon": {
         "backgroundColor": "#FFF8F2",

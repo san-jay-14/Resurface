@@ -42,8 +42,18 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
 /** Resolve the Expo push token for this device, or null if unavailable. */
 export async function getExpoPushToken(): Promise<string | null> {
-  // Push tokens only work on physical devices, not simulators/emulators.
-  if (!Device.isDevice) return null;
+  if (!Device.isDevice) {
+    console.log("[Push] Skipped: not a physical device");
+    return null;
+  }
+
+  // Must have permission before calling getExpoPushTokenAsync —
+  // if it's missing the call throws and we'd silently return null.
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== "granted") {
+    console.warn(`[Push] Skipped: notification permission is '${status}'. Grant it in device Settings.`);
+    return null;
+  }
 
   const projectId =
     env.easProjectId ||
@@ -51,16 +61,18 @@ export async function getExpoPushToken(): Promise<string | null> {
     (Constants as { easConfig?: { projectId?: string } }).easConfig?.projectId;
 
   if (!projectId) {
-    // No EAS project yet (scaffold state) — token can't be minted. Not fatal.
-    console.warn("No EAS projectId set; skipping push token registration.");
+    console.warn("[Push] Skipped: no EAS projectId found in env or app.json extra.eas.projectId");
     return null;
   }
 
+  console.log(`[Push] Fetching token (projectId: ${projectId})`);
+
   try {
     const token = await Notifications.getExpoPushTokenAsync({ projectId });
+    console.log(`[Push] Token obtained: ${token.data.slice(0, 32)}…`);
     return token.data;
   } catch (err) {
-    console.warn("Failed to get Expo push token", err);
+    console.warn("[Push] getExpoPushTokenAsync failed:", err);
     return null;
   }
 }
@@ -78,5 +90,9 @@ export async function registerDeviceToken(userId: string): Promise<void> {
     },
     { onConflict: "expo_push_token" },
   );
-  if (error) console.warn("Failed to register device token", error.message);
+  if (error) {
+    console.warn("[Push] Failed to upsert device token:", error.message);
+  } else {
+    console.log("[Push] Device token registered for user", userId);
+  }
 }
