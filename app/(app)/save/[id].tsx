@@ -205,6 +205,8 @@ export default function SaveDetail() {
       setSave(data as Save);
       setNoteText((data as Save).note ?? "");
       setLoading(false);
+      // Track last_viewed_at for dormancy calculations
+      void supabase.from("saves").update({ last_viewed_at: new Date().toISOString() }).eq("id", id);
     };
     void fetch();
   }, [id]);

@@ -42,6 +42,10 @@ const PLATFORM_META: Record<SourcePlatform, { label: string; emoji: string; colo
   youtube:   { label: "YouTube",   emoji: "▶️",  color: "#FF0000" },
   web:       { label: "Web",       emoji: "🌐",  color: "#1565C0" },
   whatsapp:  { label: "WhatsApp",  emoji: "💬",  color: "#25D366" },
+  tiktok:    { label: "TikTok",    emoji: "🎵",  color: "#010101" },
+  pinterest: { label: "Pinterest", emoji: "📌",  color: "#E60023" },
+  twitter:   { label: "X/Twitter", emoji: "🐦",  color: "#1DA1F2" },
+  linkedin:  { label: "LinkedIn",  emoji: "💼",  color: "#0A66C2" },
   unsorted:  { label: "Unsorted",  emoji: "🗂️",  color: "#444" },
 };
 
@@ -224,7 +228,7 @@ interface PlatformData {
 }
 
 export default function ProfileScreen() {
-  const { profile, session, signOut } = useAuth();
+  const { profile, session } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -313,10 +317,7 @@ export default function ProfileScreen() {
     .join("");
 
   const handleSettingsPress = () => {
-    Alert.alert(displayName, undefined, [
-      { text: "Sign out", style: "destructive", onPress: signOut },
-      { text: "Cancel", style: "cancel" },
-    ]);
+    router.push("/(app)/settings" as never);
   };
 
   return (
@@ -385,7 +386,7 @@ export default function ProfileScreen() {
         <View style={{ flex: 1 }} />
 
         {/* Settings gear */}
-        <Pressable onPress={handleSettingsPress} hitSlop={8}>
+        <Pressable onPress={() => router.push("/(app)/settings" as never)} hitSlop={8}>
           <Ionicons name="settings-outline" size={22} color="#fff" />
         </Pressable>
       </View>
@@ -434,6 +435,27 @@ export default function ProfileScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 24 }}
         >
+          {/* Wrapped teaser */}
+          {activeTab === "favourites" && allSaves.length >= 15 && (
+            <Pressable
+              onPress={() => router.push("/(app)/wrapped/history" as never)}
+              style={{
+                marginHorizontal: 16, marginBottom: 16,
+                backgroundColor: "#1A0A2E",
+                borderRadius: 16, padding: 14,
+                flexDirection: "row", alignItems: "center", gap: 12,
+                borderWidth: 1, borderColor: "#3A1A5E",
+              }}
+            >
+              <Text style={{ fontSize: 28 }}>🎁</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>Your Dibs Wrapped is ready</Text>
+                <Text style={{ color: "#888", fontSize: 12, marginTop: 2 }}>See your saves personality card</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#555" />
+            </Pressable>
+          )}
+
           {/* FAVOURITES tab */}
           {activeTab === "favourites" && (
             favourites.length === 0 ? (

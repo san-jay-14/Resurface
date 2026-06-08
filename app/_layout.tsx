@@ -1,6 +1,7 @@
 import "../global.css";
 import "@/lib/notifications"; // side-effect: sets the foreground notification handler
 
+import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
@@ -65,6 +66,31 @@ function RootNavigator() {
 
     if (!inApp) router.replace("/(app)");
   }, [resolving, session, profile, segments, router, hasShareIntent]);
+
+  // Deep link handler — handles board invite links: dibs://board/join?code=XXXX
+  // and universal links: https://getdibs.app/join/XXXX
+  useEffect(() => {
+    const handleUrl = (url: string | null) => {
+      if (!url || !session) return;
+      const parsed = Linking.parse(url);
+      // dibs://board/join?code=XXXX
+      if (parsed.scheme === "dibs" && parsed.path === "board/join" && parsed.queryParams?.code) {
+        router.push({ pathname: "/(app)/boards/invite", params: {} } as never);
+        return;
+      }
+      // https://getdibs.app/join/XXXX
+      if (parsed.hostname === "getdibs.app" && typeof parsed.path === "string" && parsed.path.startsWith("/join/")) {
+        const code = parsed.path.split("/join/")[1];
+        if (code) {
+          router.push({ pathname: "/(app)/boards/invite", params: {} } as never);
+        }
+      }
+    };
+
+    Linking.getInitialURL().then((url) => handleUrl(url));
+    const sub = Linking.addEventListener("url", (e) => handleUrl(e.url));
+    return () => sub.remove();
+  }, [session]);
 
   // City detection — runs on every app foreground event (not on every render).
   // Updates users.current_city so the daily cron can fire the new-city trigger.

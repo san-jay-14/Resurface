@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "Resurface",
+    "name": "Dibs",
     "slug": "resurface",
     "version": "1.0.0",
-    "scheme": "resurface",
+    "scheme": ["resurface", "dibs"],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -24,7 +24,14 @@
       "permissions": [
         "NOTIFICATIONS"
       ],
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [{ "scheme": "https", "host": "getdibs.app", "pathPrefix": "/join" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",

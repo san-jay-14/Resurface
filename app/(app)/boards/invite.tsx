@@ -1,0 +1,139 @@
+import { Ionicons } from "@expo/vector-icons";
+import { StatusBar } from "expo-status-bar";
+import { useRouter } from "expo-router";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { useAuth } from "@/providers/AuthProvider";
+import { env } from "@/lib/env";
+
+export default function JoinBoardScreen() {
+  const { session } = useAuth();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleJoin = async () => {
+    const trimmed = code.trim().toUpperCase();
+    if (trimmed.length < 6 || !session) return;
+    setLoading(true);
+
+    try {
+      const res = await fetch(
+        `${env.supabaseUrl}/functions/v1/board-invite-join`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ invite_code: trimmed, user_id: session.user.id }),
+        },
+      );
+      const json = await res.json() as { ok: boolean; board?: { id: string; name: string; save_count: number }; error?: string };
+
+      if (!json.ok || !json.board) {
+        Alert.alert("Couldn't join", json.error ?? "Something went wrong.");
+        return;
+      }
+
+      router.replace({
+        pathname: "/(app)/boards/confirm",
+        params: {
+          boardId: json.board.id,
+          boardName: json.board.name,
+          saveCount: String(json.board.save_count),
+        },
+      } as never);
+    } catch {
+      Alert.alert("Couldn't connect", "Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1, backgroundColor: "#000" }}
+    >
+      <StatusBar style="light" />
+
+      <View
+        style={{
+          paddingTop: insets.top + 10,
+          paddingHorizontal: 16,
+          paddingBottom: 14,
+          flexDirection: "row",
+          alignItems: "center",
+        }}
+      >
+        <Pressable onPress={() => router.back()} hitSlop={12}>
+          <Ionicons name="chevron-back" size={26} color="#fff" />
+        </Pressable>
+        <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700", flex: 1, marginLeft: 12 }}>
+          Join a Board
+        </Text>
+      </View>
+
+      <View style={{ flex: 1, paddingHorizontal: 24, paddingTop: 40 }}>
+        <Text style={{ color: "#fff", fontSize: 22, fontWeight: "800", marginBottom: 8 }}>
+          Enter invite code
+        </Text>
+        <Text style={{ color: "#666", fontSize: 14, lineHeight: 20, marginBottom: 32 }}>
+          Ask whoever shared the board for their 8-character code.
+        </Text>
+
+        <TextInput
+          value={code}
+          onChangeText={(t) => setCode(t.toUpperCase())}
+          placeholder="XKTZ8W4P"
+          placeholderTextColor="#333"
+          maxLength={8}
+          autoCapitalize="characters"
+          autoFocus
+          returnKeyType="go"
+          onSubmitEditing={handleJoin}
+          style={{
+            backgroundColor: "#1A1A1A",
+            borderRadius: 16,
+            paddingHorizontal: 20, paddingVertical: 18,
+            color: "#fff",
+            fontSize: 24, fontWeight: "700",
+            letterSpacing: 4,
+            textAlign: "center",
+            marginBottom: 20,
+          }}
+        />
+
+        <Pressable
+          onPress={handleJoin}
+          disabled={loading || code.trim().length < 6}
+          style={{
+            backgroundColor: code.trim().length >= 6 ? "#FF6B4A" : "#222",
+            borderRadius: 32, paddingVertical: 16, alignItems: "center",
+          }}
+        >
+          {loading
+            ? <ActivityIndicator color="#fff" size="small" />
+            : <Text style={{ color: code.trim().length >= 6 ? "#fff" : "#555", fontSize: 16, fontWeight: "700" }}>
+                Join Board →
+              </Text>
+          }
+        </Pressable>
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
