@@ -1,3 +1,5 @@
+import { Ionicons } from "@expo/vector-icons";
+import { StatusBar } from "expo-status-bar";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -8,6 +10,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Share,
   Text,
   TextInput,
   View,
@@ -19,6 +22,7 @@ import {
   CATEGORY_COLORS,
   CATEGORY_EMOJI,
   CATEGORY_LABEL,
+  PinCard,
   getSaveTitle,
 } from "@/components/SaveCard";
 import type { Collection, Save } from "@/lib/database.types";
@@ -31,26 +35,24 @@ import { useAuth } from "@/providers/AuthProvider";
 function Toast({ message }: { message: string | null }) {
   if (!message) return null;
   return (
-    <View className="absolute bottom-8 left-6 right-6 bg-ink/90 rounded-xl px-4 py-3 items-center">
-      <Text className="text-white text-sm">{message}</Text>
+    <View
+      style={{
+        position: "absolute", bottom: 32, left: 24, right: 24,
+        backgroundColor: "rgba(40,40,40,0.95)", borderRadius: 14,
+        paddingHorizontal: 16, paddingVertical: 12, alignItems: "center",
+      }}
+    >
+      <Text style={{ color: "#fff", fontSize: 14 }}>{message}</Text>
     </View>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Collections picker modal
+// Collections picker (unchanged logic, dark-themed)
 // ---------------------------------------------------------------------------
 function CollectionsPicker({
-  visible,
-  saveId,
-  userId,
-  onClose,
-}: {
-  visible: boolean;
-  saveId: string;
-  userId: string;
-  onClose: () => void;
-}) {
+  visible, saveId, userId, onClose,
+}: { visible: boolean; saveId: string; userId: string; onClose: () => void }) {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [membership, setMembership] = useState<Set<string>>(new Set());
   const [newName, setNewName] = useState("");
@@ -65,9 +67,7 @@ function CollectionsPicker({
     if (memRes.data) setMembership(new Set(memRes.data.map((r) => r.collection_id)));
   };
 
-  useEffect(() => {
-    if (visible) void load();
-  }, [visible]);
+  useEffect(() => { if (visible) void load(); }, [visible]);
 
   const toggle = async (col: Collection) => {
     const isMember = membership.has(col.id);
@@ -85,24 +85,31 @@ function CollectionsPicker({
     if (!name) return;
     setCreating(true);
     const { data, error } = await supabase
-      .from("collections")
-      .insert({ user_id: userId, name })
-      .select()
-      .single();
+      .from("collections").insert({ user_id: userId, name }).select().single();
     setCreating(false);
     if (error) {
-      Alert.alert("Error", error.message.includes("unique") ? "A board with that name already exists." : error.message);
+      Alert.alert("Error", error.message.includes("unique")
+        ? "A board with that name already exists." : error.message);
       return;
     }
     setNewName("");
-    if (data) setCollections((prev) => [...prev, data as Collection].sort((a, b) => a.name.localeCompare(b.name)));
+    if (data) setCollections((prev) =>
+      [...prev, data as Collection].sort((a, b) => a.name.localeCompare(b.name)),
+    );
   };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable className="flex-1 bg-black/40" onPress={onClose} />
-      <View className="bg-white rounded-t-3xl px-5 pt-5 pb-10" style={{ maxHeight: "60%" }}>
-        <Text className="text-base font-semibold text-ink mb-3">Add to board</Text>
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }} onPress={onClose} />
+      <View
+        style={{
+          backgroundColor: "#111", borderTopLeftRadius: 24, borderTopRightRadius: 24,
+          paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, maxHeight: "60%",
+        }}
+      >
+        <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 16 }}>
+          Add to board
+        </Text>
         <ScrollView>
           {collections.map((col) => {
             const on = membership.has(col.id);
@@ -110,36 +117,55 @@ function CollectionsPicker({
               <Pressable
                 key={col.id}
                 onPress={() => void toggle(col)}
-                className="flex-row items-center justify-between py-3 border-b border-line"
+                style={{
+                  flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                  paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#222",
+                }}
               >
-                <Text className="text-sm text-ink">{col.name}</Text>
-                <View className={`w-5 h-5 rounded border ${on ? "bg-coral border-coral" : "border-line"} items-center justify-center`}>
-                  {on && <Text className="text-white text-xs">✓</Text>}
+                <Text style={{ color: "#fff", fontSize: 14 }}>{col.name}</Text>
+                <View
+                  style={{
+                    width: 22, height: 22, borderRadius: 6,
+                    borderWidth: 1.5,
+                    borderColor: on ? "#FF6B4A" : "#444",
+                    backgroundColor: on ? "#FF6B4A" : "transparent",
+                    alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  {on && <Ionicons name="checkmark" size={13} color="#fff" />}
                 </View>
               </Pressable>
             );
           })}
         </ScrollView>
-        {/* Create new board */}
-        <View className="flex-row items-center gap-2 mt-3">
+        <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
           <TextInput
             value={newName}
             onChangeText={setNewName}
             placeholder="New board name…"
-            placeholderTextColor="#8A7E74"
+            placeholderTextColor="#555"
             maxLength={50}
-            className="flex-1 bg-sand rounded-xl px-3 py-2.5 text-sm text-ink"
+            style={{
+              flex: 1, backgroundColor: "#1A1A1A", borderRadius: 14,
+              paddingHorizontal: 14, paddingVertical: 10, color: "#fff", fontSize: 14,
+            }}
             returnKeyType="done"
             onSubmitEditing={create}
           />
           <Pressable
             onPress={create}
             disabled={creating || !newName.trim()}
-            className="bg-coral rounded-xl px-3 py-2.5"
+            style={{
+              backgroundColor: newName.trim() ? "#FF6B4A" : "#222",
+              borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10,
+              alignItems: "center", justifyContent: "center",
+            }}
           >
             {creating
               ? <ActivityIndicator color="#fff" size="small" />
-              : <Text className="text-white text-sm font-medium">Create</Text>
+              : <Text style={{ color: newName.trim() ? "#fff" : "#555", fontSize: 14, fontWeight: "600" }}>
+                  Create
+                </Text>
             }
           </Pressable>
         </View>
@@ -160,26 +186,15 @@ export default function SaveDetail() {
   const [save, setSave] = useState<Save | null>(null);
   const [loading, setLoading] = useState(true);
   const [noteText, setNoteText] = useState("");
-  const [editingNote, setEditingNote] = useState(false);
-  const [boards, setBoards] = useState<string[]>([]); // board names this save belongs to
+  const [noteExpanded, setNoteExpanded] = useState(false);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [moreSaves, setMoreSaves] = useState<Save[]>([]);
   const noteRef = useRef<TextInput>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
-  };
-
-  const loadBoards = async (saveId: string) => {
-    const { data } = await supabase
-      .from("collection_saves")
-      .select("collections(name)")
-      .eq("save_id", saveId);
-    if (data) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setBoards((data as any[]).map((r) => (r.collections as { name: string } | null)?.name ?? "").filter(Boolean));
-    }
   };
 
   useEffect(() => {
@@ -190,12 +205,28 @@ export default function SaveDetail() {
       setSave(data as Save);
       setNoteText((data as Save).note ?? "");
       setLoading(false);
-      await loadBoards(id);
     };
     void fetch();
   }, [id]);
 
-  // Optimistic helper: update save locally + in DB
+  // Fetch more saves in same category
+  useEffect(() => {
+    if (!save || !session) return;
+    const fetchMore = async () => {
+      const { data } = await supabase
+        .from("saves")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .eq("category", save.category)
+        .eq("archived", false)
+        .neq("id", save.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (data) setMoreSaves(data as Save[]);
+    };
+    void fetchMore();
+  }, [save]);
+
   const patchSave = async (patch: Partial<Save>, rollback: Partial<Save>) => {
     setSave((prev) => prev ? { ...prev, ...patch } : prev);
     const { error } = await supabase
@@ -213,25 +244,58 @@ export default function SaveDetail() {
     void patchSave({ is_favorite: !save.is_favorite }, { is_favorite: save.is_favorite });
   };
 
-  const toggleStatus = (wantActedOn: boolean) => {
+  const toggleActedOn = () => {
     if (!save) return;
-    const patch: Partial<Save> = {
-      acted_on: wantActedOn,
-      acted_on_at: wantActedOn ? new Date().toISOString() : null,
-    };
-    void patchSave(patch, { acted_on: save.acted_on, acted_on_at: save.acted_on_at });
+    const wantActedOn = !save.acted_on;
+    void patchSave(
+      { acted_on: wantActedOn, acted_on_at: wantActedOn ? new Date().toISOString() : null },
+      { acted_on: save.acted_on, acted_on_at: save.acted_on_at },
+    );
   };
 
   const saveNote = async () => {
     if (!save) return;
-    setEditingNote(false);
+    setNoteExpanded(false);
     const trimmed = noteText.trim() || null;
     await patchSave({ note: trimmed }, { note: save.note });
   };
 
+  const handleShare = async () => {
+    if (!save?.source_url) return;
+    try { await Share.share({ url: save.source_url, message: save.source_url }); }
+    catch { /* user cancelled */ }
+  };
+
+  const handleMoreOptions = () => {
+    Alert.alert("Options", undefined, [
+      { text: "Add to board", onPress: () => setPickerVisible(true) },
+      {
+        text: "Delete save",
+        style: "destructive",
+        onPress: () => {
+          Alert.alert("Delete this save?", "It'll be archived and recoverable for 30 days.", [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Delete", style: "destructive",
+              onPress: async () => {
+                await supabase
+                  .from("saves")
+                  .update({ archived: true, archived_at: new Date().toISOString() })
+                  .eq("id", id);
+                router.back();
+              },
+            },
+          ]);
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
   if (loading) {
     return (
-      <View className="flex-1 bg-cream items-center justify-center">
+      <View style={{ flex: 1, backgroundColor: "#000", alignItems: "center", justifyContent: "center" }}>
+        <StatusBar style="light" />
         <ActivityIndicator color="#FF6B4A" size="large" />
       </View>
     );
@@ -239,11 +303,14 @@ export default function SaveDetail() {
 
   if (!save) {
     return (
-      <View className="flex-1 bg-cream items-center justify-center px-8">
-        <Text className="text-2xl">🤔</Text>
-        <Text className="mt-4 text-base font-semibold text-ink text-center">Save not found</Text>
-        <Pressable onPress={() => router.back()} className="mt-4">
-          <Text className="text-sm text-coral font-semibold">Go back</Text>
+      <View style={{ flex: 1, backgroundColor: "#000", alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
+        <StatusBar style="light" />
+        <Text style={{ fontSize: 32 }}>🤔</Text>
+        <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 16 }}>
+          Save not found
+        </Text>
+        <Pressable onPress={() => router.back()} style={{ marginTop: 16 }}>
+          <Text style={{ color: "#FF6B4A", fontSize: 14, fontWeight: "600" }}>Go back</Text>
         </Pressable>
       </View>
     );
@@ -255,82 +322,179 @@ export default function SaveDetail() {
   const verb   = ACTED_ON_VERB[save.category]   ?? "Done";
   const title  = getSaveTitle(save);
 
-  const savedDate = new Date(save.created_at).toLocaleDateString("en-IN", {
-    day: "numeric", month: "short",
-  });
+  const leftMore = moreSaves.filter((_, i) => i % 2 === 0);
+  const rightMore = moreSaves.filter((_, i) => i % 2 !== 0);
 
   return (
-    <View className="flex-1 bg-cream">
+    <View style={{ flex: 1, backgroundColor: "#000" }}>
+      <StatusBar style="light" />
+
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
-        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
       >
-        {/* Header: back + fav + overflow */}
-        <View
-          style={{ paddingTop: insets.top + 10 }}
-          className="px-5 pb-3 flex-row items-center justify-between"
-        >
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <Text style={{ fontSize: 20 }}>←</Text>
+        {/* ── Full-width image ── */}
+        <View style={{ position: "relative" }}>
+          {save.thumbnail_url ? (
+            <Image
+              source={{ uri: save.thumbnail_url }}
+              style={{ width: "100%", aspectRatio: 0.75 }}
+              resizeMode="cover"
+            />
+          ) : (
+            <View
+              style={{
+                width: "100%", aspectRatio: 0.75,
+                backgroundColor: colors.bg,
+                alignItems: "center", justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontSize: 72 }}>{emoji}</Text>
+            </View>
+          )}
+
+          {/* Back button */}
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={8}
+            style={{
+              position: "absolute", top: insets.top + 10, left: 16,
+              backgroundColor: "rgba(40,40,40,0.85)",
+              borderRadius: 14, width: 42, height: 42,
+              alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <Ionicons name="chevron-back" size={22} color="#fff" />
           </Pressable>
-          <View className="flex-row gap-4 items-center">
-            <Pressable onPress={toggleFavorite} hitSlop={12}>
-              <Text style={{ fontSize: 20, color: save.is_favorite ? "#D4537E" : "#8A7E74" }}>
-                {save.is_favorite ? "♥" : "♡"}
-              </Text>
-            </Pressable>
-          </View>
+
+          {/* Boards button (bottom-right of image) */}
+          <Pressable
+            onPress={() => setPickerVisible(true)}
+            style={{
+              position: "absolute", bottom: 14, right: 14,
+              backgroundColor: "rgba(0,0,0,0.72)",
+              borderRadius: 14, width: 46, height: 46,
+              alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <Ionicons name="albums-outline" size={20} color="#fff" />
+          </Pressable>
         </View>
 
-        <View className="px-5">
-          {/* Large thumbnail / fallback */}
-          <View
-            className="rounded-2xl overflow-hidden items-center justify-center mb-4"
-            style={{ height: 160, backgroundColor: save.thumbnail_url ? "#EFE6DC" : colors.bg }}
-          >
-            {save.thumbnail_url ? (
-              <Image source={{ uri: save.thumbnail_url }} className="w-full h-full" resizeMode="cover" />
-            ) : (
-              <Text style={{ fontSize: 48 }}>{emoji}</Text>
-            )}
+        <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+          {/* ── Action row ── */}
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 18, gap: 22 }}>
+            {/* Favorite */}
+            <Pressable onPress={toggleFavorite} hitSlop={8}>
+              <Ionicons
+                name={save.is_favorite ? "heart" : "heart-outline"}
+                size={26}
+                color={save.is_favorite ? "#E05888" : "#fff"}
+              />
+            </Pressable>
+
+            {/* Note / comment */}
+            <Pressable
+              onPress={() => {
+                setNoteExpanded(true);
+                setTimeout(() => noteRef.current?.focus(), 60);
+              }}
+              hitSlop={8}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+            >
+              <Ionicons name="chatbubble-outline" size={24} color="#fff" />
+              {save.note && <Text style={{ color: "#fff", fontSize: 13 }}>1</Text>}
+            </Pressable>
+
+            {/* Share */}
+            <Pressable onPress={save.source_url ? handleShare : undefined} hitSlop={8}>
+              <Ionicons
+                name="share-outline"
+                size={24}
+                color={save.source_url ? "#fff" : "#444"}
+              />
+            </Pressable>
+
+            {/* More (...) */}
+            <Pressable onPress={handleMoreOptions} hitSlop={8}>
+              <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
+            </Pressable>
+
+            <View style={{ flex: 1 }} />
+
+            {/* Done / acted-on button */}
+            <Pressable
+              onPress={toggleActedOn}
+              style={{
+                backgroundColor: save.acted_on ? "#2A5C0A" : "#FF6B4A",
+                borderRadius: 26,
+                paddingHorizontal: 22,
+                paddingVertical: 13,
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
+                {save.acted_on ? `✓ ${verb}` : verb}
+              </Text>
+            </Pressable>
           </View>
 
-          {/* Title */}
-          <Text className="text-lg font-semibold text-ink mb-2 leading-6">{title}</Text>
+          {/* ── Category chip (like "author" row in Pinterest) ── */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <View
+              style={{
+                width: 24, height: 24, borderRadius: 12,
+                backgroundColor: colors.bg,
+                alignItems: "center", justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontSize: 12 }}>{emoji}</Text>
+            </View>
+            <Text style={{ color: "#888", fontSize: 13 }}>{label}</Text>
+          </View>
 
-          {/* Category chip */}
+          {/* ── Title + chevron ── */}
           <View
-            className="self-start px-3 py-1 rounded-full mb-4"
-            style={{ backgroundColor: colors.bg }}
+            style={{
+              flexDirection: "row", alignItems: "flex-start",
+              gap: 10, marginBottom: 10,
+            }}
           >
-            <Text style={{ fontSize: 12, color: colors.text, fontWeight: "500" }}>
-              {label}
+            <Text
+              style={{
+                flex: 1, color: "#fff", fontSize: 22,
+                fontWeight: "800", lineHeight: 28,
+              }}
+              numberOfLines={noteExpanded ? undefined : 2}
+            >
+              {title}
             </Text>
-          </View>
-
-          {/* Status toggle */}
-          <View className="flex-row bg-sand rounded-xl p-1 mb-4">
             <Pressable
-              onPress={() => toggleStatus(false)}
-              className={`flex-1 items-center py-2 rounded-lg ${!save.acted_on ? "bg-white" : ""}`}
+              onPress={() => {
+                setNoteExpanded((v) => !v);
+                if (!noteExpanded) setTimeout(() => noteRef.current?.focus(), 60);
+              }}
+              style={{
+                backgroundColor: "#2A2A2A", borderRadius: 10,
+                width: 34, height: 34, alignItems: "center", justifyContent: "center",
+                marginTop: 2,
+              }}
             >
-              <Text className={`text-sm font-medium ${!save.acted_on ? "text-ink" : "text-muted"}`}>
-                Saved
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => toggleStatus(true)}
-              className={`flex-1 items-center py-2 rounded-lg ${save.acted_on ? "bg-white" : ""}`}
-            >
-              <Text className={`text-sm font-medium ${save.acted_on ? "text-ink" : "text-muted"}`}>
-                {verb}
-              </Text>
+              <Ionicons
+                name={noteExpanded ? "chevron-up" : "chevron-down"}
+                size={15}
+                color="#fff"
+              />
             </Pressable>
           </View>
 
-          {/* Note */}
-          {editingNote ? (
-            <View className="bg-sand rounded-xl p-3 mb-4">
+          {/* ── Note area ── */}
+          {noteExpanded ? (
+            <View
+              style={{
+                backgroundColor: "#1A1A1A", borderRadius: 16,
+                padding: 14, marginBottom: 18,
+              }}
+            >
               <TextInput
                 ref={noteRef}
                 value={noteText}
@@ -338,60 +502,118 @@ export default function SaveDetail() {
                 multiline
                 maxLength={280}
                 placeholder="Why did you save this?"
-                placeholderTextColor="#8A7E74"
-                className="text-sm text-ink leading-5 min-h-16"
-                autoFocus
+                placeholderTextColor="#555"
+                style={{
+                  color: "#fff", fontSize: 14, lineHeight: 21,
+                  minHeight: 64,
+                }}
               />
-              <View className="flex-row items-center justify-between mt-2">
-                <Text className="text-xs text-muted">{noteText.length}/280</Text>
+              <View
+                style={{
+                  flexDirection: "row", justifyContent: "space-between",
+                  alignItems: "center", marginTop: 10,
+                }}
+              >
+                <Text style={{ color: "#555", fontSize: 12 }}>{noteText.length}/280</Text>
                 <Pressable
                   onPress={saveNote}
-                  className="bg-coral rounded-lg px-4 py-1.5"
+                  style={{
+                    backgroundColor: "#FF6B4A", borderRadius: 10,
+                    paddingHorizontal: 16, paddingVertical: 7,
+                  }}
                 >
-                  <Text className="text-white text-xs font-semibold">Save</Text>
+                  <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>Save</Text>
                 </Pressable>
               </View>
             </View>
+          ) : save.note ? (
+            <Pressable
+              onPress={() => {
+                setNoteExpanded(true);
+                setTimeout(() => noteRef.current?.focus(), 60);
+              }}
+              style={{ marginBottom: 18 }}
+            >
+              <Text style={{ color: "#888", fontSize: 14 }} numberOfLines={1}>
+                "{save.note}"
+                {"  "}
+                <Text style={{ color: "#bbb", fontWeight: "500" }}>Edit note</Text>
+              </Text>
+            </Pressable>
           ) : (
             <Pressable
-              onPress={() => { setEditingNote(true); setTimeout(() => noteRef.current?.focus(), 50); }}
-              className="bg-sand rounded-xl p-3 mb-4 min-h-12 justify-center"
+              onPress={() => {
+                setNoteExpanded(true);
+                setTimeout(() => noteRef.current?.focus(), 60);
+              }}
+              style={{ marginBottom: 18 }}
             >
-              <Text className={`text-sm ${save.note ? "text-ink" : "text-muted"} leading-5`}>
-                {save.note ?? "Add a note — why did you save this?"}
+              <Text style={{ color: "#444", fontSize: 14 }}>
+                Add a note…{"  "}
+                <Text style={{ color: "#666" }}>Why did you save this?</Text>
               </Text>
             </Pressable>
           )}
 
-          {/* Boards membership */}
-          <Pressable
-            onPress={() => setPickerVisible(true)}
-            className="flex-row items-center justify-between bg-sand rounded-xl px-3 py-3 mb-4"
-          >
-            <View>
-              <Text className="text-xs text-muted mb-0.5">Boards</Text>
-              <Text className="text-sm text-ink">
-                {boards.length > 0 ? boards.join(", ") : "Add to a board"}
-              </Text>
-            </View>
-            <Text className="text-muted text-base">›</Text>
-          </Pressable>
-
-          {/* Open original */}
+          {/* ── Open original (Visit site) ── */}
           {save.source_url ? (
             <Pressable
               onPress={() => void Linking.openURL(save.source_url!)}
-              className="flex-row items-center justify-center gap-2 bg-coral rounded-2xl py-3.5 mb-3"
+              style={{
+                backgroundColor: "#2A2A2A", borderRadius: 32,
+                paddingVertical: 17, alignItems: "center", marginBottom: 32,
+              }}
             >
-              <Text className="text-white font-semibold text-sm">Open original</Text>
+              <Text style={{ color: "#fff", fontSize: 15, fontWeight: "500" }}>
+                Open original
+              </Text>
             </Pressable>
-          ) : null}
+          ) : (
+            <View style={{ marginBottom: 32 }} />
+          )}
 
-          {/* Footer */}
-          <Text className="text-xs text-muted text-center mt-1">
-            Saved {savedDate}
-            {boards.length > 0 ? ` · ${boards.join(", ")}` : ""}
-          </Text>
+          {/* ── More to explore ── */}
+          {moreSaves.length > 0 && (
+            <>
+              <Text
+                style={{
+                  color: "#fff", fontSize: 18, fontWeight: "700", marginBottom: 14,
+                }}
+              >
+                More in {label.toLowerCase()}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={{ flex: 1, gap: 8 }}>
+                  {leftMore.map((s) => (
+                    <PinCard
+                      key={s.id}
+                      save={s}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/(app)/save/[id]",
+                          params: { id: s.id },
+                        } as never)
+                      }
+                    />
+                  ))}
+                </View>
+                <View style={{ flex: 1, gap: 8 }}>
+                  {rightMore.map((s) => (
+                    <PinCard
+                      key={s.id}
+                      save={s}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/(app)/save/[id]",
+                          params: { id: s.id },
+                        } as never)
+                      }
+                    />
+                  ))}
+                </View>
+              </View>
+            </>
+          )}
         </View>
       </ScrollView>
 
@@ -399,10 +621,7 @@ export default function SaveDetail() {
         visible={pickerVisible}
         saveId={save.id}
         userId={session?.user.id ?? ""}
-        onClose={async () => {
-          setPickerVisible(false);
-          await loadBoards(save.id);
-        }}
+        onClose={() => setPickerVisible(false)}
       />
 
       <Toast message={toast} />

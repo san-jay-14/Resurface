@@ -17,6 +17,10 @@ module.exports = {
         sand: "#EFE6DC",
         muted: "#8A7E74",
         line: "#E7DBCF",
+        // Dark / Pinterest-mode tokens
+        pitch: "#000000",
+        surface: "#1A1A1A",
+        dim: "#888888",
       },
       fontFamily: {
         sans: ["System"],

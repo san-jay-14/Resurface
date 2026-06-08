@@ -1,5 +1,150 @@
 import { ActivityIndicator, Image, Pressable, Text, View } from "react-native";
 
+// ---------------------------------------------------------------------------
+// PinCard — dark Pinterest-style card used in the home masonry grid
+// ---------------------------------------------------------------------------
+
+function pinAspectRatio(id: string): number {
+  // Deterministic variation: 3 heights based on last hex char of UUID
+  const mod = parseInt(id.slice(-1), 16) % 3;
+  return [0.70, 0.83, 1.00][mod];
+}
+
+interface PinCardProps {
+  save: Save;
+  onPress?: () => void;
+}
+
+// ---------------------------------------------------------------------------
+// BoardDetailCard — overlay style used inside board detail screens
+// ---------------------------------------------------------------------------
+export function BoardDetailCard({ save, onPress, onFavorite }: SaveCardProps) {
+  const colors  = CATEGORY_COLORS[save.category] ?? CATEGORY_COLORS.unsorted;
+  const emoji   = CATEGORY_EMOJI[save.category]  ?? CATEGORY_EMOJI.unsorted;
+  const title   = getSaveTitle(save);
+  const ar      = [0.70, 0.83, 1.00][parseInt(save.id.slice(-1), 16) % 3];
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{ borderRadius: 14, overflow: "hidden", backgroundColor: "#1A1A1A" }}
+    >
+      {save.thumbnail_url ? (
+        <>
+          <Image
+            source={{ uri: save.thumbnail_url }}
+            style={{ width: "100%", aspectRatio: ar }}
+            resizeMode="cover"
+          />
+          {/* Dark overlay + title */}
+          <View
+            style={{
+              position: "absolute", bottom: 0, left: 0, right: 0,
+              backgroundColor: "rgba(0,0,0,0.55)",
+              paddingHorizontal: 7, paddingTop: 18, paddingBottom: 7,
+            }}
+          >
+            <Text
+              style={{ color: "#fff", fontSize: 11, fontWeight: "600", lineHeight: 14 }}
+              numberOfLines={1}
+            >
+              {title}
+            </Text>
+          </View>
+        </>
+      ) : (
+        <View
+          style={{
+            aspectRatio: ar, backgroundColor: colors.bg,
+            alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <Text style={{ fontSize: 32 }}>{emoji}</Text>
+        </View>
+      )}
+      {/* Star / favourite */}
+      <Pressable
+        onPress={(e) => { e.stopPropagation?.(); onFavorite?.(); }}
+        hitSlop={8}
+        style={{ position: "absolute", top: 7, right: 8 }}
+      >
+        <Text
+          style={{
+            fontSize: 18,
+            color: save.is_favorite ? "#FFD700" : "rgba(255,255,255,0.75)",
+          }}
+        >
+          {save.is_favorite ? "★" : "☆"}
+        </Text>
+      </Pressable>
+    </Pressable>
+  );
+}
+
+export function PinCard({ save, onPress }: PinCardProps) {
+  const colors = CATEGORY_COLORS[save.category] ?? CATEGORY_COLORS.unsorted;
+  const emoji  = CATEGORY_EMOJI[save.category]  ?? CATEGORY_EMOJI.unsorted;
+  const label  = CATEGORY_LABEL[save.category]  ?? "Unsorted";
+  const title  = getSaveTitle(save);
+  const isPending = save.status === "pending";
+  const ar = pinAspectRatio(save.id);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{ borderRadius: 14, overflow: "hidden", backgroundColor: "#1A1A1A" }}
+    >
+      {save.thumbnail_url ? (
+        <View>
+          <Image
+            source={{ uri: save.thumbnail_url }}
+            style={{ width: "100%", aspectRatio: ar }}
+            resizeMode="cover"
+          />
+          {isPending && (
+            <View
+              style={{
+                position: "absolute", top: 0, bottom: 0, left: 0, right: 0,
+                backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center",
+              }}
+            >
+              <ActivityIndicator color="#fff" size="small" />
+            </View>
+          )}
+        </View>
+      ) : (
+        <View
+          style={{
+            aspectRatio: ar,
+            backgroundColor: colors.bg,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Text style={{ fontSize: 34 }}>{emoji}</Text>
+          {isPending && (
+            <ActivityIndicator color={colors.text} size="small" style={{ marginTop: 6 }} />
+          )}
+        </View>
+      )}
+
+      <View style={{ paddingHorizontal: 8, paddingTop: 7, paddingBottom: 9 }}>
+        <Text
+          style={{ color: "#FFFFFF", fontSize: 11.5, fontWeight: "500", lineHeight: 15 }}
+          numberOfLines={2}
+        >
+          {title}
+        </Text>
+        {save.acted_on ? (
+          <Text style={{ color: "#4CAF50", fontSize: 10, marginTop: 3 }}>✓ {ACTED_ON_VERB[save.category] ?? "Done"}</Text>
+        ) : (
+          <Text style={{ color: "#666", fontSize: 10, marginTop: 3 }}>{label}</Text>
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
 import type { Save, SaveCategory } from "@/lib/database.types";
 
 // Category visual palette — light tint bg + darker text from same family

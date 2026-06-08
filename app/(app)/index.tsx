@@ -1,9 +1,10 @@
+import { Ionicons } from "@expo/vector-icons";
+import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
-  Modal,
+  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -12,7 +13,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SaveCard } from "@/components/SaveCard";
+import {
+  CATEGORY_COLORS,
+  CATEGORY_EMOJI,
+  CATEGORY_LABEL,
+  PinCard,
+} from "@/components/SaveCard";
 import { TabBar } from "@/components/TabBar";
 import type { Save, SaveCategory } from "@/lib/database.types";
 import {
@@ -26,11 +32,10 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
 // ---------------------------------------------------------------------------
-// Filter + sort config
+// Tab strip config
 // ---------------------------------------------------------------------------
-const CATEGORY_FILTERS: { value: "all" | "not_done" | SaveCategory; label: string }[] = [
-  { value: "all",        label: "All" },
-  { value: "not_done",   label: "Not done" },
+const TABS: { value: "all" | SaveCategory; label: string }[] = [
+  { value: "all",        label: "For you" },
   { value: "places",     label: "Places" },
   { value: "recipes",    label: "Recipes" },
   { value: "fashion",    label: "Fashion" },
@@ -39,91 +44,225 @@ const CATEGORY_FILTERS: { value: "all" | "not_done" | SaveCategory; label: strin
   { value: "inspo",      label: "Inspo" },
 ];
 
-type SortOption = "recent" | "oldest" | "not_done_first" | "fav_first";
-
-const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: "recent",        label: "Recent" },
-  { value: "oldest",        label: "Oldest" },
-  { value: "not_done_first",label: "Not done first" },
-  { value: "fav_first",     label: "Favorites first" },
-];
-
-function applySortAndFilter(
-  saves: Save[],
-  filter: "all" | "not_done" | SaveCategory,
-  sort: SortOption,
-): Save[] {
-  let result = [...saves];
-
-  // Filter
-  if (filter === "not_done") {
-    result = result.filter((s) => !s.acted_on);
-  } else if (filter !== "all") {
-    result = result.filter((s) => s.category === filter);
-  }
-
-  // Sort
-  switch (sort) {
-    case "oldest":
-      result.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      break;
-    case "not_done_first":
-      result.sort((a, b) => {
-        if (a.acted_on !== b.acted_on) return a.acted_on ? 1 : -1;
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      });
-      break;
-    case "fav_first":
-      result.sort((a, b) => {
-        if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      });
-      break;
-    default: // recent
-      result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }
-
-  return result;
+function applyFilter(saves: Save[], filter: "all" | SaveCategory): Save[] {
+  if (filter === "all") return saves;
+  return saves.filter((s) => s.category === filter);
 }
 
 // ---------------------------------------------------------------------------
-// Sort sheet
+// Masonry grid (used in both "For you" and board views)
 // ---------------------------------------------------------------------------
-function SortSheet({
-  visible,
-  current,
-  onSelect,
-  onClose,
+function MasonryGrid({
+  saves,
+  onPressCard,
 }: {
-  visible: boolean;
-  current: SortOption;
-  onSelect: (s: SortOption) => void;
-  onClose: () => void;
+  saves: Save[];
+  onPressCard: (id: string) => void;
 }) {
+  const leftItems = saves.filter((_, i) => i % 2 === 0);
+  const rightItems = saves.filter((_, i) => i % 2 !== 0);
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable className="flex-1 bg-black/40" onPress={onClose} />
-      <View className="bg-white rounded-t-3xl px-6 pt-5 pb-10">
-        <Text className="text-base font-semibold text-ink mb-4">Sort by</Text>
-        {SORT_OPTIONS.map((opt) => (
-          <Pressable
-            key={opt.value}
-            onPress={() => { onSelect(opt.value); onClose(); }}
-            className="flex-row items-center justify-between py-3.5 border-b border-line"
-          >
-            <Text className="text-sm text-ink">{opt.label}</Text>
-            {current === opt.value && (
-              <Text className="text-coral text-base">✓</Text>
-            )}
-          </Pressable>
+    <View style={{ flexDirection: "row", gap: 8 }}>
+      <View style={{ flex: 1, gap: 8 }}>
+        {leftItems.map((save) => (
+          <PinCard key={save.id} save={save} onPress={() => onPressCard(save.id)} />
         ))}
       </View>
-    </Modal>
+      <View style={{ flex: 1, gap: 8 }}>
+        {rightItems.map((save) => (
+          <PinCard key={save.id} save={save} onPress={() => onPressCard(save.id)} />
+        ))}
+      </View>
+    </View>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Main screen
+// Board view — shown when a category tab is active
+// ---------------------------------------------------------------------------
+function BoardView({
+  category,
+  saves,
+  onPressCard,
+  refreshing,
+  onRefresh,
+}: {
+  category: SaveCategory;
+  saves: Save[];
+  onPressCard: (id: string) => void;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
+  const colors = CATEGORY_COLORS[category];
+  const emoji  = CATEGORY_EMOJI[category];
+  const label  = CATEGORY_LABEL[category];
+  const recentSaves = saves.slice(0, 6);
+
+  return (
+    <ScrollView
+      style={{ flex: 1 }}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6B4A" />
+      }
+    >
+      {/* Category title + count */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 4 }}>
+        <Text
+          style={{ color: "#fff", fontSize: 36, fontWeight: "800", letterSpacing: -1 }}
+        >
+          {label.toLowerCase()}
+        </Text>
+        <Text style={{ color: "#666", fontSize: 13, marginTop: 5 }}>
+          {saves.length} {saves.length === 1 ? "Save" : "Saves"}
+        </Text>
+      </View>
+
+      {/* Recently saved section */}
+      {recentSaves.length > 0 && (
+        <>
+          <View
+            style={{
+              paddingHorizontal: 16,
+              paddingTop: 26,
+              paddingBottom: 13,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Text style={{ color: "#fff", fontSize: 17, fontWeight: "700" }}>
+              Recently saved by you
+            </Text>
+            <View
+              style={{
+                backgroundColor: "#2A2A2A",
+                borderRadius: 10,
+                width: 34,
+                height: 34,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="arrow-forward" size={16} color="#fff" />
+            </View>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+          >
+            {recentSaves.map((save) => (
+              <Pressable
+                key={save.id}
+                onPress={() => onPressCard(save.id)}
+                style={{ borderRadius: 12, overflow: "hidden", width: 86, height: 86 }}
+              >
+                {save.thumbnail_url ? (
+                  <Image
+                    source={{ uri: save.thumbnail_url }}
+                    style={{ width: "100%", height: "100%" }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View
+                    style={{
+                      flex: 1,
+                      backgroundColor: colors.bg,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ fontSize: 26 }}>{emoji}</Text>
+                  </View>
+                )}
+              </Pressable>
+            ))}
+          </ScrollView>
+        </>
+      )}
+
+      {/* Masonry grid */}
+      {saves.length > 0 ? (
+        <View style={{ paddingHorizontal: 8, paddingTop: 24, paddingBottom: 24 }}>
+          <MasonryGrid saves={saves} onPressCard={onPressCard} />
+        </View>
+      ) : (
+        <View style={{ alignItems: "center", paddingTop: 60, paddingHorizontal: 40 }}>
+          <Text style={{ fontSize: 40 }}>📭</Text>
+          <Text
+            style={{
+              color: "#fff", fontSize: 16, fontWeight: "600",
+              textAlign: "center", marginTop: 16,
+            }}
+          >
+            Nothing saved yet
+          </Text>
+          <Text
+            style={{
+              color: "#666", fontSize: 13, textAlign: "center",
+              lineHeight: 18, marginTop: 8,
+            }}
+          >
+            Save something in {label} and it'll appear here.
+          </Text>
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Contextual location banner (dark-themed)
+// ---------------------------------------------------------------------------
+function LocationBanner({
+  count,
+  onEnable,
+  onDismiss,
+}: {
+  count: number;
+  onEnable: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <View
+      style={{
+        marginBottom: 12,
+        borderRadius: 16,
+        backgroundColor: "#1A1A1A",
+        borderWidth: 1,
+        borderColor: "#2A2A2A",
+      }}
+    >
+      <View style={{ paddingHorizontal: 14, paddingVertical: 12 }}>
+        <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600", marginBottom: 2 }}>
+          📍 Resurface you when you're there
+        </Text>
+        <Text style={{ color: "#888", fontSize: 11, lineHeight: 15 }}>
+          You've saved {count} places. Allow location so we can remind you when you're nearby.
+        </Text>
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+          <Pressable
+            onPress={onEnable}
+            style={{
+              backgroundColor: "#fff", borderRadius: 8,
+              paddingHorizontal: 14, paddingVertical: 7,
+            }}
+          >
+            <Text style={{ color: "#000", fontSize: 12, fontWeight: "700" }}>Turn on</Text>
+          </Pressable>
+          <Pressable onPress={onDismiss} style={{ paddingHorizontal: 10, paddingVertical: 7 }}>
+            <Text style={{ color: "#666", fontSize: 12 }}>Not now</Text>
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Home / Library screen
 // ---------------------------------------------------------------------------
 export default function Library() {
   const { session } = useAuth();
@@ -133,9 +272,7 @@ export default function Library() {
   const [saves, setSaves] = useState<Save[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<"all" | "not_done" | SaveCategory>("all");
-  const [sort, setSort] = useState<SortOption>("recent");
-  const [sortVisible, setSortVisible] = useState(false);
+  const [filter, setFilter] = useState<"all" | SaveCategory>("all");
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
@@ -160,7 +297,7 @@ export default function Library() {
 
   useEffect(() => { void fetchSaves(); }, [session]);
 
-  // Contextual location prompt: show after 3+ Places saves, once, if permission not granted.
+  // Contextual location prompt after 3+ Places saves
   useEffect(() => {
     const placesCount = saves.filter((s) => s.category === "places").length;
     if (placesCount < 3) return;
@@ -173,7 +310,7 @@ export default function Library() {
     })();
   }, [saves]);
 
-  // Realtime: patch individual cards as enrichment or edits complete
+  // Realtime saves patch
   useEffect(() => {
     if (!session) return;
     const channel = supabase
@@ -198,117 +335,55 @@ export default function Library() {
     return () => { void supabase.removeChannel(channel); };
   }, [session]);
 
-  // Optimistic favorite toggle
-  const handleFavorite = async (save: Save) => {
-    const next = !save.is_favorite;
-    setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: next } : s));
-    const { error } = await supabase
-      .from("saves")
-      .update({ is_favorite: next, last_interacted_at: new Date().toISOString() })
-      .eq("id", save.id);
-    if (error) {
-      // revert
-      setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: !next } : s));
-    }
-  };
+  const filtered = applyFilter(saves, filter);
+  const placesCount = saves.filter((s) => s.category === "places").length;
 
-  const filtered = applySortAndFilter(saves, filter, sort);
+  const navigateToCard = (id: string) =>
+    router.push({ pathname: "/(app)/save/[id]", params: { id } } as never);
 
   return (
-    <View className="flex-1 bg-cream">
-      {/* Top bar */}
-      <View style={{ paddingTop: insets.top + 12 }} className="px-5 pb-3 flex-row items-center justify-between">
-        <Text className="text-xl font-bold text-ink">Library</Text>
-        <Pressable
-          onPress={() => setSortVisible(true)}
-          className="w-8 h-8 rounded-lg border border-line bg-white items-center justify-center"
-        >
-          <Text style={{ fontSize: 16 }}>⇅</Text>
-        </Pressable>
-      </View>
+    <View style={{ flex: 1, backgroundColor: "#000" }}>
+      <StatusBar style="light" />
 
-      {/* Tappable search bar */}
-      <Pressable
-        onPress={() => router.replace("/(app)/search" as never)}
-        className="mx-5 mb-3 flex-row items-center gap-2 bg-sand rounded-xl px-3 py-2.5"
-      >
-        <Text className="text-muted" style={{ fontSize: 14 }}>🔍</Text>
-        <Text className="text-muted text-sm">Search your saves</Text>
-      </Pressable>
-
-      {/* Contextual location permission prompt */}
-      {showLocationPrompt && (
-        <View className="mx-5 mb-3 rounded-2xl overflow-hidden" style={{ backgroundColor: "#E1F5EE" }}>
-          <View className="px-4 py-3">
-            <Text className="text-sm font-semibold text-ink mb-0.5">
-              📍 Resurface you when you're there
-            </Text>
-            <Text className="text-xs text-muted leading-4">
-              You've saved {saves.filter((s) => s.category === "places").length} places. Allow location so we can remind you when you're nearby.
-            </Text>
-            <View className="flex-row gap-2 mt-2.5">
-              <Pressable
-                onPress={async () => {
-                  const granted = await requestLocationPermission();
-                  setShowLocationPrompt(false);
-                  await dismissLocationPrompt();
-                  if (!granted) return;
-                }}
-                className="bg-ink rounded-lg px-4 py-1.5"
-              >
-                <Text className="text-white text-xs font-semibold">Turn on</Text>
-              </Pressable>
-              <Pressable
-                onPress={async () => {
-                  setShowLocationPrompt(false);
-                  await dismissLocationPrompt();
-                }}
-                className="px-4 py-1.5"
-              >
-                <Text className="text-xs text-muted">Not now</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* Filter chips */}
+      {/* Scrollable tab strip */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0 }}
         contentContainerStyle={{
+          paddingTop: insets.top + 10,
+          paddingBottom: 12,
+          paddingHorizontal: 16,
+          gap: 28,
           flexDirection: "row",
           alignItems: "center",
-          paddingHorizontal: 20,
-          paddingTop: 2,
-          paddingBottom: 12,
         }}
       >
-        {CATEGORY_FILTERS.map((chip, i) => {
-          const active = chip.value === filter;
+        {TABS.map((tab) => {
+          const active = tab.value === filter;
           return (
             <Pressable
-              key={chip.value}
-              onPress={() => setFilter(chip.value)}
-              style={{
-                marginRight: i < CATEGORY_FILTERS.length - 1 ? 7 : 0,
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 99,
-                borderWidth: 1,
-                borderColor: active ? "#1C1714" : "#E7DBCF",
-                backgroundColor: active ? "#1C1714" : "#FFFFFF",
-              }}
+              key={tab.value}
+              onPress={() => setFilter(tab.value)}
+              style={{ alignItems: "center", gap: 6 }}
             >
               <Text
                 style={{
-                  fontSize: 12,
-                  fontWeight: "500",
-                  color: active ? "#FFFFFF" : "#8A7E74",
+                  fontSize: 14,
+                  fontWeight: active ? "700" : "400",
+                  color: active ? "#FFFFFF" : "#666666",
                 }}
               >
-                {chip.label}
+                {tab.label}
               </Text>
+              <View
+                style={{
+                  height: 2,
+                  width: "100%",
+                  borderRadius: 1,
+                  backgroundColor: active ? "#FFFFFF" : "transparent",
+                }}
+              />
             </Pressable>
           );
         })}
@@ -316,33 +391,45 @@ export default function Library() {
 
       {/* Content */}
       {loading ? (
-        <View className="flex-1 items-center justify-center">
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator color="#FF6B4A" size="large" />
         </View>
+      ) : filter !== "all" ? (
+        // Board view for category tabs
+        <BoardView
+          category={filter}
+          saves={filtered}
+          onPressCard={navigateToCard}
+          refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); void fetchSaves(true); }}
+        />
       ) : filtered.length === 0 ? (
-        <View className="flex-1 items-center justify-center px-10">
-          <Text className="text-4xl">{filter !== "all" ? "🔍" : "📭"}</Text>
-          <Text className="mt-4 text-center text-base font-semibold text-ink">
-            {filter !== "all" ? "No matches" : "Nothing here yet"}
+        // "For you" empty state
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 40 }}>
+          <Text style={{ fontSize: 40 }}>📭</Text>
+          <Text
+            style={{
+              marginTop: 16, color: "#fff", fontSize: 16,
+              fontWeight: "600", textAlign: "center",
+            }}
+          >
+            Your board is empty
           </Text>
-          <Text className="mt-2 text-center text-sm leading-5 text-muted">
-            {filter !== "all"
-              ? "Try a different filter."
-              : "Share a link or Instagram post into Resurface and it'll appear here."}
+          <Text
+            style={{
+              marginTop: 8, color: "#666", fontSize: 13,
+              textAlign: "center", lineHeight: 18,
+            }}
+          >
+            Share a link or Instagram post into Resurface.
           </Text>
-          {filter !== "all" && (
-            <Pressable className="mt-4" onPress={() => setFilter("all")}>
-              <Text className="text-sm font-semibold text-coral">Clear filter</Text>
-            </Pressable>
-          )}
         </View>
       ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 8 }}
-          columnWrapperStyle={{ gap: 12 }}
+        // "For you" masonry feed
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 8, paddingTop: 4, paddingBottom: 20 }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -350,27 +437,26 @@ export default function Library() {
               tintColor="#FF6B4A"
             />
           }
-          renderItem={({ item }) => (
-            <View className="flex-1">
-              <SaveCard
-                save={item}
-                onPress={() => router.push({ pathname: "/(app)/save/[id]", params: { id: item.id } } as never)}
-                onFavorite={() => void handleFavorite(item)}
-              />
-            </View>
+        >
+          {showLocationPrompt && (
+            <LocationBanner
+              count={placesCount}
+              onEnable={async () => {
+                await requestLocationPermission();
+                setShowLocationPrompt(false);
+                await dismissLocationPrompt();
+              }}
+              onDismiss={async () => {
+                setShowLocationPrompt(false);
+                await dismissLocationPrompt();
+              }}
+            />
           )}
-          ListFooterComponent={filtered.length % 2 !== 0 ? <View className="flex-1" /> : null}
-        />
+          <MasonryGrid saves={filtered} onPressCard={navigateToCard} />
+        </ScrollView>
       )}
 
-      <SortSheet
-        visible={sortVisible}
-        current={sort}
-        onSelect={setSort}
-        onClose={() => setSortVisible(false)}
-      />
-
-      <TabBar active="library" />
+      <TabBar active="library" variant="dark" />
     </View>
   );
 }

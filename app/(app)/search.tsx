@@ -1,9 +1,12 @@
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Pressable,
   Text,
   TextInput,
@@ -17,22 +20,93 @@ import type { Save } from "@/lib/database.types";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
-const RECENT_KEY = "resurface_recent_searches";
-const MAX_RECENT = 5;
+const RECENT_KEY = "resurface_recent_searches_v2";
+const MAX_RECENT = 8;
 
-async function addRecentSearch(term: string) {
+type RecentSearch = { term: string; thumbnail: string | null };
+
+async function loadRecentSearches(): Promise<RecentSearch[]> {
   try {
     const raw = await AsyncStorage.getItem(RECENT_KEY);
-    const existing: string[] = raw ? JSON.parse(raw) : [];
-    const updated = [term, ...existing.filter((t) => t !== term)].slice(0, MAX_RECENT);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    // Migrate old string[] format
+    if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "string") {
+      return (parsed as string[]).map((term) => ({ term, thumbnail: null }));
+    }
+    return parsed as RecentSearch[];
+  } catch { return []; }
+}
+
+async function persistRecentSearch(term: string, thumbnail: string | null) {
+  try {
+    const existing = await loadRecentSearches();
+    const updated = [
+      { term, thumbnail },
+      ...existing.filter((s) => s.term !== term),
+    ].slice(0, MAX_RECENT);
     await AsyncStorage.setItem(RECENT_KEY, JSON.stringify(updated));
   } catch { /* best-effort */ }
 }
 
+async function deleteRecentSearch(term: string) {
+  try {
+    const existing = await loadRecentSearches();
+    await AsyncStorage.setItem(
+      RECENT_KEY,
+      JSON.stringify(existing.filter((s) => s.term !== term)),
+    );
+  } catch { /* best-effort */ }
+}
+
 // ---------------------------------------------------------------------------
-// Compact save row for results list
+// Recent search row
 // ---------------------------------------------------------------------------
-function SaveRow({ save, onPress }: { save: Save; onPress: () => void }) {
+function RecentRow({
+  item,
+  onPress,
+  onRemove,
+}: {
+  item: RecentSearch;
+  onPress: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, gap: 14 }}
+    >
+      <View
+        style={{
+          width: 60,
+          height: 60,
+          borderRadius: 10,
+          overflow: "hidden",
+          backgroundColor: "#1A1A1A",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {item.thumbnail ? (
+          <Image source={{ uri: item.thumbnail }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+        ) : (
+          <Ionicons name="search-outline" size={22} color="#555" />
+        )}
+      </View>
+      <Text style={{ flex: 1, color: "#fff", fontSize: 15, fontWeight: "600" }}>
+        {item.term}
+      </Text>
+      <Pressable onPress={onRemove} hitSlop={10}>
+        <Ionicons name="close" size={18} color="#555" />
+      </Pressable>
+    </Pressable>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Search result row
+// ---------------------------------------------------------------------------
+function ResultRow({ save, onPress }: { save: Save; onPress: () => void }) {
   const colors = CATEGORY_COLORS[save.category] ?? CATEGORY_COLORS.unsorted;
   const emoji  = CATEGORY_EMOJI[save.category]  ?? "🗂️";
   const label  = CATEGORY_LABEL[save.category]  ?? "Unsorted";
@@ -41,19 +115,34 @@ function SaveRow({ save, onPress }: { save: Save; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
-      className="flex-row items-center py-3 border-b border-line gap-3"
+      style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, gap: 14 }}
     >
       <View
-        className="w-10 h-10 rounded-xl items-center justify-center"
-        style={{ backgroundColor: colors.bg }}
+        style={{
+          width: 60,
+          height: 60,
+          borderRadius: 10,
+          overflow: "hidden",
+          backgroundColor: colors.bg,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
       >
-        <Text style={{ fontSize: 18 }}>{emoji}</Text>
+        {save.thumbnail_url ? (
+          <Image source={{ uri: save.thumbnail_url }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+        ) : (
+          <Text style={{ fontSize: 24 }}>{emoji}</Text>
+        )}
       </View>
-      <View className="flex-1">
-        <Text className="text-sm font-medium text-ink" numberOfLines={1}>{title}</Text>
-        <Text className="text-xs text-muted">{label}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: "#fff", fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
+          {title}
+        </Text>
+        <Text style={{ color: "#666", fontSize: 12, marginTop: 2 }}>{label}</Text>
       </View>
-      {save.is_favorite && <Text style={{ fontSize: 13, color: "#D4537E" }}>♥</Text>}
+      {save.is_favorite && (
+        <Ionicons name="heart" size={14} color="#D4537E" />
+      )}
     </Pressable>
   );
 }
@@ -70,14 +159,12 @@ export default function SearchScreen() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Save[]>([]);
   const [searching, setSearching] = useState(false);
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    AsyncStorage.getItem(RECENT_KEY)
-      .then((raw) => { if (raw) setRecentSearches(JSON.parse(raw)); })
-      .catch(() => {});
-    setTimeout(() => inputRef.current?.focus(), 100);
+    void loadRecentSearches().then(setRecentSearches);
+    setTimeout(() => inputRef.current?.focus(), 120);
   }, []);
 
   const doSearch = async (q: string) => {
@@ -106,13 +193,18 @@ export default function SearchScreen() {
     debounceRef.current = setTimeout(() => void doSearch(text), 250);
   };
 
-  const commitSearch = (term: string) => {
+  const commitSearch = (term: string, thumbnail: string | null = null) => {
     if (!term.trim()) return;
-    void addRecentSearch(term.trim());
-    setRecentSearches((prev) => {
-      const updated = [term.trim(), ...prev.filter((t) => t !== term.trim())].slice(0, MAX_RECENT);
-      return updated;
-    });
+    const entry: RecentSearch = { term: term.trim(), thumbnail };
+    void persistRecentSearch(term.trim(), thumbnail);
+    setRecentSearches((prev) =>
+      [entry, ...prev.filter((s) => s.term !== term.trim())].slice(0, MAX_RECENT),
+    );
+  };
+
+  const removeRecent = (term: string) => {
+    void deleteRecentSearch(term);
+    setRecentSearches((prev) => prev.filter((s) => s.term !== term));
   };
 
   const clearQuery = () => {
@@ -124,92 +216,124 @@ export default function SearchScreen() {
   const isEmpty = query.trim().length === 0;
 
   return (
-    <View className="flex-1 bg-cream">
-      {/* Search bar */}
+    <View style={{ flex: 1, backgroundColor: "#000" }}>
+      <StatusBar style="light" />
+
+      {/* Search bar row */}
       <View
-        style={{ paddingTop: insets.top + 12 }}
-        className="px-5 pb-3 flex-row items-center gap-3"
+        style={{
+          paddingTop: insets.top + 12,
+          paddingHorizontal: 16,
+          paddingBottom: 14,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+        }}
       >
-        <View className="flex-1 flex-row items-center bg-sand rounded-xl px-3 py-2.5 gap-2">
-          <Text style={{ fontSize: 14 }}>🔍</Text>
+        {/* Pill input */}
+        <View
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: "#1A1A1A",
+            borderRadius: 26,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            gap: 8,
+          }}
+        >
+          <Ionicons name="search" size={16} color="#666" />
           <TextInput
             ref={inputRef}
             value={query}
             onChangeText={handleChange}
-            onSubmitEditing={() => commitSearch(query)}
-            placeholder="Search your saves…"
-            placeholderTextColor="#8A7E74"
+            onSubmitEditing={() => commitSearch(query, results[0]?.thumbnail_url ?? null)}
+            placeholder="Search your saves"
+            placeholderTextColor="#555"
             returnKeyType="search"
-            className="flex-1 text-sm text-ink"
+            style={{ flex: 1, color: "#fff", fontSize: 15 }}
           />
           {query.length > 0 && (
             <Pressable onPress={clearQuery} hitSlop={8}>
-              <Text className="text-muted text-base">✕</Text>
+              <Ionicons name="close-circle" size={18} color="#555" />
             </Pressable>
           )}
         </View>
+
+        {/* Cancel */}
+        <Pressable onPress={() => router.replace("/(app)/" as never)}>
+          <Text style={{ color: "#fff", fontSize: 15 }}>Cancel</Text>
+        </Pressable>
       </View>
 
-      {/* Results or recent searches */}
+      {/* Body */}
       {isEmpty ? (
-        <View className="flex-1 px-5">
-          {recentSearches.length > 0 && (
-            <>
-              <Text className="text-xs text-muted mb-2">Recent searches</Text>
-              <View className="flex-row flex-wrap gap-2">
-                {recentSearches.map((term) => (
-                  <Pressable
-                    key={term}
-                    onPress={() => { setQuery(term); handleChange(term); }}
-                    className="px-3 py-1.5 rounded-full border border-line bg-white"
-                  >
-                    <Text className="text-xs text-muted">{term}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </>
-          )}
-          {recentSearches.length === 0 && (
-            <View className="flex-1 items-center justify-center">
-              <Text className="text-muted text-sm text-center">
-                Type something to search your saves
-              </Text>
+        <FlatList
+          data={recentSearches}
+          keyExtractor={(item) => item.term}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingTop: 4,
+            paddingBottom: 20,
+          }}
+          ListEmptyComponent={
+            <View style={{ flex: 1, alignItems: "center", paddingTop: 60 }}>
+              <Text style={{ color: "#555", fontSize: 14 }}>Search your saves</Text>
             </View>
+          }
+          renderItem={({ item }) => (
+            <RecentRow
+              item={item}
+              onPress={() => {
+                setQuery(item.term);
+                handleChange(item.term);
+              }}
+              onRemove={() => removeRecent(item.term)}
+            />
           )}
-        </View>
+        />
       ) : searching ? (
-        <View className="flex-1 items-center justify-center">
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator color="#FF6B4A" size="small" />
         </View>
       ) : (
         <FlatList
           data={results}
           keyExtractor={(item) => item.id}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingTop: 4,
+            paddingBottom: 20,
+          }}
           ListHeaderComponent={
-            <Text className="text-xs text-muted mb-1 px-5">
-              {results.length} result{results.length !== 1 ? "s" : ""}
-            </Text>
+            results.length > 0 ? (
+              <Text style={{ color: "#555", fontSize: 12, marginBottom: 6 }}>
+                {results.length} result{results.length !== 1 ? "s" : ""}
+              </Text>
+            ) : null
           }
-          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 16 }}
           renderItem={({ item }) => (
-            <SaveRow
+            <ResultRow
               save={item}
               onPress={() => {
-                commitSearch(query);
+                commitSearch(query, item.thumbnail_url ?? null);
                 router.push({ pathname: "/(app)/save/[id]", params: { id: item.id } } as never);
               }}
             />
           )}
           ListEmptyComponent={
-            <View className="items-center justify-center py-16">
-              <Text className="text-3xl">🔍</Text>
-              <Text className="mt-3 text-sm text-muted text-center">No saves match "{query}"</Text>
+            <View style={{ alignItems: "center", paddingTop: 60 }}>
+              <Text style={{ fontSize: 32 }}>🔍</Text>
+              <Text style={{ marginTop: 12, color: "#666", fontSize: 14, textAlign: "center" }}>
+                No saves match "{query}"
+              </Text>
             </View>
           }
         />
       )}
 
-      <TabBar active="search" />
+      <TabBar active="search" variant="dark" />
     </View>
   );
 }
