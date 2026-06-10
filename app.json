@@ -45,6 +45,12 @@
       "expo-apple-authentication",
       "@react-native-community/datetimepicker",
       [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsVersion": "11.20.1"
+        }
+      ],
+      [
         "expo-notifications",
         {
           "color": "#FF6B4A"

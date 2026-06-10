@@ -10,13 +10,16 @@ import type { SaveCategory } from "@/lib/database.types";
 import {
   createManualSave,
   createPendingSave,
+  createScrapedSave,
   detectPlatform,
   isAutoPlatform,
   triggerEnrich,
+  type ScrapedSaveData,
 } from "@/lib/saves";
+import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
-type Mode = "detecting" | "auto" | "manual";
+type Mode = "detecting" | "auto" | "scraping" | "manual";
 type SaveState = "idle" | "saving" | "success" | "error";
 
 export default function ShareScreen() {
@@ -30,10 +33,9 @@ export default function ShareScreen() {
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Prevent re-processing if shareIntent reference changes.
   const didProcess = useRef(false);
 
-  // Bail out if no share intent appears within 3 s (safety net for dev).
+  // Safety net: if no share intent arrives within 3 s, bail back to app.
   useEffect(() => {
     const t = setTimeout(() => {
       if (mode === "detecting") {
@@ -44,7 +46,6 @@ export default function ShareScreen() {
     return () => clearTimeout(t);
   }, [mode, resetShareIntent, router]);
 
-  // Main routing: detect URL → auto or manual path (spec §3.2).
   useEffect(() => {
     if (!shareIntent || !session || didProcess.current) return;
     didProcess.current = true;
@@ -56,8 +57,49 @@ export default function ShareScreen() {
     }
 
     const platform = detectPlatform(url);
+
+    if (platform === "instagram") {
+      // Auto-scrape path: call Edge Function, fall back to manual on any failure.
+      setMode("scraping");
+
+      const TIMEOUT_MS = 5000;
+
+      const scrapePromise = supabase.functions.invoke("scrape-instagram", {
+        body: { url, user_id: session.user.id },
+      });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), TIMEOUT_MS),
+      );
+
+      Promise.race([scrapePromise, timeoutPromise])
+        .then(async (res) => {
+          const body = (res as { data: unknown }).data as
+            | { success: boolean; data?: ScrapedSaveData }
+            | null;
+          const scrapeData = body?.success ? body.data : undefined;
+          if (!scrapeData) {
+            setMode("manual");
+            return;
+          }
+
+          setSaveState("saving");
+          await createScrapedSave(session.user.id, url, scrapeData);
+          setSaveState("success");
+          setTimeout(() => {
+            resetShareIntent();
+            router.replace("/(app)");
+          }, 1400);
+        })
+        .catch(() => {
+          // Timeout or network error — fall back to manual popup.
+          setMode("manual");
+        });
+
+      return;
+    }
+
     if (isAutoPlatform(platform)) {
-      // Auto path: save immediately, enrich in the background.
+      // Non-Instagram auto platforms: save immediately, enrich in background.
       setMode("auto");
       setSaveState("saving");
       createPendingSave({ userId: session.user.id, url, sourcePlatform: platform })
@@ -74,7 +116,6 @@ export default function ShareScreen() {
           setErrorMsg("Couldn't save this link. Try again.");
         });
     } else {
-      // Instagram URL (or unrecognised) → manual category popup.
       setMode("manual");
     }
   }, [shareIntent, session, router, resetShareIntent]);
@@ -107,14 +148,19 @@ export default function ShareScreen() {
     }
   }
 
-  // ----- Full-screen states (auto path + shared loading / success / error) -----
-  if (mode === "auto" || mode === "detecting") {
+  // Full-screen states (detecting, auto path, scraping path)
+  if (mode === "auto" || mode === "detecting" || mode === "scraping") {
+    const loadingText =
+      mode === "scraping"
+        ? "Getting details from Instagram…"
+        : "Saving…";
+
     return (
       <Screen className="items-center justify-center gap-5">
         {saveState === "saving" || saveState === "idle" ? (
           <>
             <ActivityIndicator color="#FF6B4A" size="large" />
-            <Text className="text-base font-medium text-ink">Saving…</Text>
+            <Text className="text-base font-medium text-ink">{loadingText}</Text>
           </>
         ) : saveState === "success" ? (
           <>
@@ -144,7 +190,7 @@ export default function ShareScreen() {
     );
   }
 
-  // ----- Manual path -----
+  // Manual path
   const needsLocation = category === "places" || category === "shopping";
   const isSaving = saveState === "saving";
 

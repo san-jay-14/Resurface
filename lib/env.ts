@@ -28,4 +28,7 @@ export const env = {
   // Optional — only needed once the respective feature is wired up.
   googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "",
   easProjectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID ?? "",
+  // Mapbox public token — required for the Places map view.
+  // Get yours at https://console.mapbox.com/account/access-tokens/
+  mapboxToken: process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "",
 };

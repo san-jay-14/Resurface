@@ -2,17 +2,17 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Text, View } from "react-native";
 
-import { OnboardingScaffold } from "@/components/OnboardingScaffold";
+import { DarkOnboardingScaffold } from "@/components/DarkOnboardingScaffold";
 import {
   registerDeviceToken,
   requestNotificationPermission,
 } from "@/lib/notifications";
 import { useAuth } from "@/providers/AuthProvider";
 
-const promises = [
-  "“You saved a rooftop bar here 3 weeks ago. Still want to go?”",
-  "“Long weekend coming up — you had 4 getaway spots saved.”",
-  "“Your birthday's in a week. Remember these outfits?”",
+const NUDGES = [
+  { emoji: "📍", text: "\"You saved a rooftop bar here 3 weeks ago. Still want to go?\"" },
+  { emoji: "✈️", text: "\"Long weekend coming up — you had 4 getaway spots saved.\"" },
+  { emoji: "🎂", text: "\"Your birthday's in a week. Remember these outfits?\"" },
 ];
 
 export default function NotificationsStep() {
@@ -24,7 +24,6 @@ export default function NotificationsStep() {
     setWorking(true);
     try {
       const granted = await requestNotificationPermission();
-      // Register the push token now if we can; harmless if permission was denied.
       if (granted && session) await registerDeviceToken(session.user.id);
     } finally {
       setWorking(false);
@@ -33,27 +32,35 @@ export default function NotificationsStep() {
   }
 
   return (
-    <OnboardingScaffold
+    <DarkOnboardingScaffold
       step={3}
       totalSteps={4}
-      title="The whole point: good timing"
-      subtitle="Resurface only pings you when a save actually matters — at most twice a week, never spammy. It should feel like a friend texting, not an app nagging."
-      primaryLabel="Turn on notifications"
+      title="we only ping you when it actually matters."
+      titleAccent="actually matters"
+      subtitle="At most twice a week. No streak reminders. No random nudges. Just Dibs saying — hey, remember this?"
+      primaryLabel="yes, remind me →"
       primaryLoading={working}
       onPrimary={enable}
-      skipLabel="Maybe later"
+      skipLabel="I'll miss out then"
       onSkip={() => router.push("/(onboarding)/share-guide")}
     >
-      <View className="gap-3">
-        {promises.map((line) => (
+      <View style={{ gap: 10 }}>
+        {NUDGES.map((n) => (
           <View
-            key={line}
-            className="rounded-2xl border border-line bg-coral-soft px-4 py-3"
+            key={n.emoji}
+            style={{
+              flexDirection: "row", alignItems: "flex-start", gap: 12,
+              backgroundColor: "#141414", borderRadius: 14,
+              padding: 14, borderWidth: 1, borderColor: "#222",
+            }}
           >
-            <Text className="text-[15px] leading-6 text-ink">{line}</Text>
+            <Text style={{ fontSize: 20, marginTop: 1 }}>{n.emoji}</Text>
+            <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, lineHeight: 20, flex: 1 }}>
+              {n.text}
+            </Text>
           </View>
         ))}
       </View>
-    </OnboardingScaffold>
+    </DarkOnboardingScaffold>
   );
 }

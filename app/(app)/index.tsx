@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { PlaceDetailCard } from "@/components/PlaceDetailCard";
+import { PlacesMap } from "@/components/PlacesMap";
 import {
   CATEGORY_COLORS,
   CATEGORY_EMOJI,
@@ -20,7 +22,8 @@ import {
   PinCard,
 } from "@/components/SaveCard";
 import { TabBar } from "@/components/TabBar";
-import type { Save, SaveCategory } from "@/lib/database.types";
+import type { PlaceSave, Save, SaveCategory } from "@/lib/database.types";
+import { fetchPlacesMapSaves } from "@/lib/saves";
 import {
   dismissLocationPrompt,
   getLocationPermissionStatus,
@@ -78,7 +81,8 @@ function MasonryGrid({
 }
 
 // ---------------------------------------------------------------------------
-// Board view — shown when a category tab is active
+// Board view — shown when a category tab is active.
+// For the Places tab, adds a grid/map toggle with lazy-loaded map data.
 // ---------------------------------------------------------------------------
 function BoardView({
   category,
@@ -93,11 +97,71 @@ function BoardView({
   refreshing: boolean;
   onRefresh: () => void;
 }) {
+  const { session } = useAuth();
+
+  const [viewMode, setViewMode] = useState<"grid" | "map">("grid");
+  const [mapSaves, setMapSaves] = useState<PlaceSave[]>([]);
+  const [unmappedCount, setUnmappedCount] = useState(0);
+  const [mapLoading, setMapLoading] = useState(false);
+  const [selectedSave, setSelectedSave] = useState<PlaceSave | null>(null);
+  const mapFetchedRef = useRef(false);
+
+  const fetchMapData = useCallback(async () => {
+    if (!session || category !== "places" || mapFetchedRef.current) return;
+    mapFetchedRef.current = true;
+    setMapLoading(true);
+    const { mapped, unmappedCount: uc } = await fetchPlacesMapSaves(session.user.id);
+    setMapSaves(mapped);
+    setUnmappedCount(uc);
+    setMapLoading(false);
+  }, [session, category]);
+
+  useEffect(() => {
+    if (viewMode === "map") void fetchMapData();
+  }, [viewMode, fetchMapData]);
+
+  async function handleMarkVisited(saveId: string) {
+    // Optimistic update — flip pin colour immediately without waiting for DB.
+    setMapSaves((prev) =>
+      prev.map((s) => (s.id === saveId ? { ...s, acted_on: true } : s)),
+    );
+    setSelectedSave((prev) =>
+      prev?.id === saveId ? { ...prev, acted_on: true } : prev,
+    );
+    await supabase
+      .from("saves")
+      .update({ acted_on: true, acted_on_at: new Date().toISOString() })
+      .eq("id", saveId);
+  }
+
   const colors = CATEGORY_COLORS[category];
   const emoji  = CATEGORY_EMOJI[category];
   const label  = CATEGORY_LABEL[category];
   const recentSaves = saves.slice(0, 6);
 
+  // ── Map view ──────────────────────────────────────────────────────────────
+  if (category === "places" && viewMode === "map") {
+    return (
+      <View style={{ flex: 1 }}>
+        <PlacesMap
+          saves={mapSaves}
+          unmappedCount={unmappedCount}
+          loading={mapLoading}
+          onPinPress={setSelectedSave}
+          onAddLocationPress={() => {}}
+        />
+        {selectedSave && (
+          <PlaceDetailCard
+            save={selectedSave}
+            onDismiss={() => setSelectedSave(null)}
+            onMarkVisited={(id) => void handleMarkVisited(id)}
+          />
+        )}
+      </View>
+    );
+  }
+
+  // ── Grid view ─────────────────────────────────────────────────────────────
   return (
     <ScrollView
       style={{ flex: 1 }}
@@ -106,16 +170,44 @@ function BoardView({
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF6B4A" />
       }
     >
-      {/* Category title + count */}
-      <View style={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 4 }}>
-        <Text
-          style={{ color: "#fff", fontSize: 36, fontWeight: "800", letterSpacing: -1 }}
-        >
-          {label.toLowerCase()}
-        </Text>
-        <Text style={{ color: "#666", fontSize: 13, marginTop: 5 }}>
-          {saves.length} {saves.length === 1 ? "Save" : "Saves"}
-        </Text>
+      {/* Category title + count + optional map toggle */}
+      <View
+        style={{
+          paddingHorizontal: 16,
+          paddingTop: 18,
+          paddingBottom: 4,
+          flexDirection: "row",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+        }}
+      >
+        <View>
+          <Text
+            style={{ color: "#fff", fontSize: 36, fontWeight: "800", letterSpacing: -1 }}
+          >
+            {label.toLowerCase()}
+          </Text>
+          <Text style={{ color: "#666", fontSize: 13, marginTop: 5 }}>
+            {saves.length} {saves.length === 1 ? "Save" : "Saves"}
+          </Text>
+        </View>
+
+        {category === "places" && (
+          <Pressable
+            onPress={() => setViewMode("map")}
+            style={{
+              backgroundColor: "#1A1A1A",
+              borderRadius: 10,
+              width: 38,
+              height: 38,
+              alignItems: "center",
+              justifyContent: "center",
+              marginTop: 6,
+            }}
+          >
+            <Ionicons name="map-outline" size={18} color="#fff" />
+          </Pressable>
+        )}
       </View>
 
       {/* Recently saved section */}

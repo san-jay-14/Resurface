@@ -1,77 +1,341 @@
 import * as AppleAuthentication from "expo-apple-authentication";
-import { useState } from "react";
-import { Alert, Platform, Text, View } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useRef, useState } from "react";
+import {
+  Alert,
+  Animated,
+  Dimensions,
+  Platform,
+  Pressable,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Button } from "@/components/Button";
-import { Screen } from "@/components/Screen";
 import { useAuth } from "@/providers/AuthProvider";
 
+const { width: SCREEN_W } = Dimensions.get("window");
+
+type Phase = "intro" | "auth";
 type Pending = "google" | "apple" | "guest" | null;
 
+// ---------------------------------------------------------------------------
+// Dibs wordmark icon (top-left badge on intro)
+// ---------------------------------------------------------------------------
+function DibsBadge() {
+  return (
+    <View
+      style={{
+        width: 48, height: 48, borderRadius: 14,
+        backgroundColor: "#FF6B4A",
+        alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <Text style={{ color: "#fff", fontSize: 22, fontWeight: "900", letterSpacing: -1 }}>d</Text>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Intro phase — staggered text animations
+// ---------------------------------------------------------------------------
+function IntroPhase({ onGetStarted, onAlreadyHave }: {
+  onGetStarted: () => void;
+  onAlreadyHave: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+
+  const anims = useRef(
+    Array.from({ length: 6 }, () => ({
+      opacity: new Animated.Value(0),
+      y: new Animated.Value(28),
+    })),
+  ).current;
+
+  useEffect(() => {
+    const delays = [120, 320, 520, 820, 1150, 1400];
+    const animations = anims.map((a, i) =>
+      Animated.parallel([
+        Animated.timing(a.opacity, {
+          toValue: 1, duration: 600, delay: delays[i], useNativeDriver: true,
+        }),
+        Animated.timing(a.y, {
+          toValue: 0, duration: 500, delay: delays[i], useNativeDriver: true,
+        }),
+      ]),
+    );
+    Animated.parallel(animations).start();
+  }, []);
+
+  const line = (i: number, children: React.ReactNode) => (
+    <Animated.View
+      style={{ opacity: anims[i].opacity, transform: [{ translateY: anims[i].y }] }}
+    >
+      {children}
+    </Animated.View>
+  );
+
+  return (
+    <View style={{ flex: 1, backgroundColor: "#0A0A0A" }}>
+      <StatusBar style="light" />
+
+      {/* Badge */}
+      <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 24 }}>
+        {line(0, <DibsBadge />)}
+      </View>
+
+      {/* Headline */}
+      <View style={{ flex: 1, justifyContent: "center", paddingHorizontal: 24, gap: 0 }}>
+        {line(1,
+          <Text style={{ color: "#fff", fontSize: 52, fontWeight: "900", lineHeight: 58, letterSpacing: -2 }}>
+            you call dibs{"\n"}on everything.
+          </Text>
+        )}
+        <View style={{ height: 6 }} />
+        {line(2,
+          <Text style={{ fontSize: 52, fontWeight: "900", lineHeight: 58, letterSpacing: -2 }}>
+            <Text style={{ color: "#fff" }}>do </Text>
+            <Text style={{ color: "#FF6B4A" }}>none</Text>
+            <Text style={{ color: "#fff" }}>{"\n"}of it.</Text>
+          </Text>
+        )}
+        <View style={{ height: 24 }} />
+        {line(3,
+          <Text style={{
+            color: "rgba(255,255,255,0.45)", fontSize: 20,
+            fontStyle: "italic", fontWeight: "400", letterSpacing: -0.3,
+          }}>
+            let's fix that.
+          </Text>
+        )}
+      </View>
+
+      {/* CTAs */}
+      <View
+        style={{
+          paddingHorizontal: 24,
+          paddingBottom: Math.max(insets.bottom, 24) + 12,
+          gap: 14,
+        }}
+      >
+        {line(4,
+          <Pressable
+            onPress={onGetStarted}
+            style={{
+              backgroundColor: "#FF6B4A", borderRadius: 18,
+              paddingVertical: 18,
+              flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+            }}
+          >
+            <Text style={{ color: "#fff", fontSize: 17, fontWeight: "800", letterSpacing: -0.3 }}>
+              get started
+            </Text>
+            <Text style={{ color: "#fff", fontSize: 17, fontWeight: "800" }}>→</Text>
+          </Pressable>
+        )}
+        {line(5,
+          <Pressable onPress={onAlreadyHave} style={{ alignItems: "center", paddingVertical: 6 }}>
+            <Text style={{
+              color: "rgba(255,255,255,0.3)", fontSize: 11,
+              fontWeight: "700", letterSpacing: 1.5, textTransform: "uppercase",
+            }}>
+              I already have an account
+            </Text>
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Auth phase — sign-in options
+// ---------------------------------------------------------------------------
+function AuthPhase({
+  onBack,
+  pending,
+  onGoogle,
+  onApple,
+  onGuest,
+}: {
+  onBack: () => void;
+  pending: Pending;
+  onGoogle: () => void;
+  onApple: () => void;
+  onGuest: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(40)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 380, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View
+      style={{
+        flex: 1, backgroundColor: "#0A0A0A",
+        opacity: fadeAnim, transform: [{ translateY: slideAnim }],
+      }}
+    >
+      <StatusBar style="light" />
+
+      {/* Back */}
+      <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 20 }}>
+        <Pressable onPress={onBack} hitSlop={12} style={{ alignSelf: "flex-start" }}>
+          <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 28, lineHeight: 32 }}>←</Text>
+        </Pressable>
+      </View>
+
+      {/* Brand */}
+      <View style={{ flex: 1, justifyContent: "flex-end", paddingHorizontal: 24, paddingBottom: 48 }}>
+        <Text style={{
+          color: "#FF6B4A", fontSize: 44, fontWeight: "900",
+          letterSpacing: -2, marginBottom: 16,
+        }}>
+          dibs.
+        </Text>
+        <Text style={{
+          color: "#fff", fontSize: 32, fontWeight: "800",
+          lineHeight: 38, letterSpacing: -1, marginBottom: 8,
+        }}>
+          Save it.{"\n"}Actually do it.
+        </Text>
+        <Text style={{
+          color: "rgba(255,255,255,0.35)", fontSize: 15,
+          lineHeight: 21, fontWeight: "400",
+        }}>
+          The app that actually brings your saves back.
+        </Text>
+      </View>
+
+      {/* Sign-in buttons */}
+      <View
+        style={{
+          paddingHorizontal: 24,
+          paddingBottom: Math.max(insets.bottom, 24) + 12,
+          gap: 12,
+        }}
+      >
+        {/* Google */}
+        <Pressable
+          onPress={onGoogle}
+          disabled={pending !== null}
+          style={({ pressed }) => ({
+            backgroundColor: "#FF6B4A", borderRadius: 18,
+            paddingVertical: 17,
+            flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+            opacity: pressed || (pending !== null && pending !== "google") ? 0.5 : 1,
+          })}
+        >
+          {pending === "google" ? (
+            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>Signing in…</Text>
+          ) : (
+            <>
+              <Text style={{ fontSize: 18 }}>G</Text>
+              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
+                sign in with Google
+              </Text>
+            </>
+          )}
+        </Pressable>
+
+        {/* Apple (iOS only) */}
+        {Platform.OS === "ios" && (
+          <AppleAuthentication.AppleAuthenticationButton
+            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+            cornerRadius={18}
+            style={{ height: 54 }}
+            onPress={onApple}
+          />
+        )}
+
+        {/* Divider */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 2 }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: "#1E1E1E" }} />
+          <Text style={{ color: "rgba(255,255,255,0.2)", fontSize: 12 }}>or</Text>
+          <View style={{ flex: 1, height: 1, backgroundColor: "#1E1E1E" }} />
+        </View>
+
+        {/* Guest */}
+        <Pressable
+          onPress={onGuest}
+          disabled={pending !== null}
+          style={{ alignItems: "center", paddingVertical: 8 }}
+        >
+          {pending === "guest" ? (
+            <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>Loading…</Text>
+          ) : (
+            <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>
+              just start saving — no account needed
+            </Text>
+          )}
+        </Pressable>
+      </View>
+    </Animated.View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Root component — manages phase transitions
+// ---------------------------------------------------------------------------
 export default function SignIn() {
   const { signInWithGoogle, signInWithApple, signInAsGuest } = useAuth();
+  const [phase, setPhase] = useState<Phase>("intro");
   const [pending, setPending] = useState<Pending>(null);
+
+  const introOpacity = useRef(new Animated.Value(1)).current;
+
+  const switchToAuth = () => {
+    Animated.timing(introOpacity, {
+      toValue: 0, duration: 280, useNativeDriver: true,
+    }).start(() => setPhase("auth"));
+  };
+
+  const switchToIntro = () => {
+    introOpacity.setValue(0);
+    setPhase("intro");
+    Animated.timing(introOpacity, {
+      toValue: 1, duration: 300, useNativeDriver: true,
+    }).start();
+  };
 
   async function run(which: Exclude<Pending, null>, fn: () => Promise<void>) {
     try {
       setPending(which);
       await fn();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Something went wrong.";
-      Alert.alert("Couldn't sign in", message);
+      const msg = err instanceof Error ? err.message : "Something went wrong.";
+      Alert.alert("Couldn't sign in", msg);
     } finally {
       setPending(null);
     }
   }
 
+  if (phase === "intro") {
+    return (
+      <Animated.View style={{ flex: 1, opacity: introOpacity }}>
+        <IntroPhase
+          onGetStarted={switchToAuth}
+          onAlreadyHave={switchToAuth}
+        />
+      </Animated.View>
+    );
+  }
+
   return (
-    <Screen className="justify-between py-6">
-      {/* Brand + promise */}
-      <View className="mt-16">
-        <Text className="text-5xl font-extrabold text-ink">Resurface</Text>
-        <Text className="mt-4 text-lg leading-7 text-muted">
-          Your saves, brought back at the right moment — when you&apos;re near
-          that café, the week before your birthday, the evening before a long
-          weekend.
-        </Text>
-      </View>
-
-      {/* Sign-in options */}
-      <View className="gap-3 pb-2">
-        <Button
-          label="Continue with Google"
-          onPress={() => run("google", signInWithGoogle)}
-          loading={pending === "google"}
-          disabled={pending !== null}
-        />
-
-        {Platform.OS === "ios" && (
-          <AppleAuthentication.AppleAuthenticationButton
-            buttonType={
-              AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
-            }
-            buttonStyle={
-              AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
-            }
-            cornerRadius={16}
-            style={{ height: 56 }}
-            onPress={() => run("apple", signInWithApple)}
-          />
-        )}
-
-        <Button
-          label="Just start saving"
-          variant="secondary"
-          onPress={() => run("guest", signInAsGuest)}
-          loading={pending === "guest"}
-          disabled={pending !== null}
-        />
-        <Text className="mt-1 text-center text-sm text-muted">
-          No account needed to start. You can sign in later to keep your saves
-          safe.
-        </Text>
-      </View>
-    </Screen>
+    <AuthPhase
+      onBack={switchToIntro}
+      pending={pending}
+      onGoogle={() => run("google", signInWithGoogle)}
+      onApple={() => run("apple", signInWithApple)}
+      onGuest={() => run("guest", signInAsGuest)}
+    />
   );
 }

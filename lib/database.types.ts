@@ -66,6 +66,7 @@ export interface Save {
   category: SaveCategory;
   title: string | null;
   note: string | null;
+  caption: string | null;
   thumbnail_url: string | null;
   ai_description: string | null;
   keywords: string[] | null;
@@ -78,6 +79,25 @@ export interface Save {
   last_viewed_at: string | null;
   created_at: string;
   last_interacted_at: string | null;
+  scrape_method: string;
+  category_confidence: number | null;
+  source_username: string | null;
+}
+
+/** A Places save joined with its location data — used by the map view. */
+export interface PlaceSave {
+  id: string;
+  caption: string | null;
+  note: string | null;
+  thumbnail_url: string | null;
+  acted_on: boolean;
+  created_at: string;
+  source_url: string | null;
+  location_name: string;
+  location_city: string | null;
+  lat: number;
+  lng: number;
+  google_place_id: string | null;
 }
 
 export interface Collection {

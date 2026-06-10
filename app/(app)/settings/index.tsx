@@ -23,32 +23,46 @@ interface RowProps {
 
 function SettingsRow({ icon, label, onPress, value, danger }: RowProps) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => ({
-        flexDirection: "row", alignItems: "center", gap: 14,
-        paddingHorizontal: 16, paddingVertical: 15,
-        backgroundColor: pressed ? "#111" : "transparent",
-      })}
-    >
-      <View
-        style={{
-          width: 34, height: 34, borderRadius: 10,
-          backgroundColor: danger ? "rgba(255,80,80,0.15)" : "#1A1A1A",
-          alignItems: "center", justifyContent: "center",
-        }}
-      >
-        <Ionicons name={icon as never} size={17} color={danger ? "#FF5050" : "#999"} />
-      </View>
-      <Text
-        style={{
-          flex: 1, fontSize: 15, color: danger ? "#FF5050" : "#fff",
-        }}
-      >
-        {label}
-      </Text>
-      {value && <Text style={{ fontSize: 13, color: "#555" }}>{value}</Text>}
-      {!danger && <Ionicons name="chevron-forward" size={15} color="#444" />}
+    <Pressable onPress={onPress}>
+      {({ pressed }) => (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            paddingHorizontal: 16,
+            paddingVertical: 14,
+            minHeight: 52,
+            backgroundColor: pressed ? "#111" : "transparent",
+          }}
+        >
+          <View
+            style={{
+              width: 34, height: 34, borderRadius: 10,
+              backgroundColor: danger ? "rgba(255,80,80,0.15)" : "#1A1A1A",
+              alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <Ionicons name={icon as never} size={17} color={danger ? "#FF5050" : "#999"} />
+          </View>
+          <Text
+            numberOfLines={1}
+            style={{
+              flex: 1,
+              fontSize: 15,
+              color: danger ? "#FF5050" : "#fff",
+              marginLeft: 14,
+            }}
+          >
+            {label}
+          </Text>
+          {value ? (
+            <Text style={{ fontSize: 13, color: "#555", marginRight: 6 }}>{value}</Text>
+          ) : null}
+          {!danger ? (
+            <Ionicons name="chevron-forward" size={15} color="#444" />
+          ) : null}
+        </View>
+      )}
     </Pressable>
   );
 }

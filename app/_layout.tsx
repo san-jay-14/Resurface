@@ -54,7 +54,7 @@ function RootNavigator() {
 
     const onboarded = profile?.onboarding_completed ?? false;
     if (!onboarded) {
-      if (!inOnboarding) router.replace("/(onboarding)/birthday");
+      if (!inOnboarding) router.replace("/(onboarding)/welcome");
       return;
     }
 
@@ -149,7 +149,7 @@ function RootNavigator() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: "#FFF8F2" },
+        contentStyle: { backgroundColor: "#0A0A0A" },
       }}
     />
   );
@@ -160,7 +160,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <AuthProvider>
         <ShareIntentProvider>
-          <StatusBar style="dark" />
+          <StatusBar style="light" />
           <RootNavigator />
         </ShareIntentProvider>
       </AuthProvider>

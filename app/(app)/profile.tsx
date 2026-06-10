@@ -384,11 +384,6 @@ export default function ProfileScreen() {
         })}
 
         <View style={{ flex: 1 }} />
-
-        {/* Settings gear */}
-        <Pressable onPress={() => router.push("/(app)/settings" as never)} hitSlop={8}>
-          <Ionicons name="settings-outline" size={22} color="#fff" />
-        </Pressable>
       </View>
 
       {/* ── Search bar + "+" ── */}
