@@ -10,16 +10,14 @@ import type { SaveCategory } from "@/lib/database.types";
 import {
   createManualSave,
   createPendingSave,
-  createScrapedSave,
   detectPlatform,
   isAutoPlatform,
   triggerEnrich,
-  type ScrapedSaveData,
 } from "@/lib/saves";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
-type Mode = "detecting" | "auto" | "scraping" | "manual";
+type Mode = "detecting" | "auto" | "manual";
 type SaveState = "idle" | "saving" | "success" | "error";
 
 export default function ShareScreen() {
@@ -59,42 +57,28 @@ export default function ShareScreen() {
     const platform = detectPlatform(url);
 
     if (platform === "instagram") {
-      // Auto-scrape path: call Edge Function, fall back to manual on any failure.
-      setMode("scraping");
-
-      const TIMEOUT_MS = 5000;
-
-      const scrapePromise = supabase.functions.invoke("scrape-instagram", {
-        body: { url, user_id: session.user.id },
-      });
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("timeout")), TIMEOUT_MS),
-      );
-
-      Promise.race([scrapePromise, timeoutPromise])
-        .then(async (res) => {
-          const body = (res as { data: unknown }).data as
-            | { success: boolean; data?: ScrapedSaveData }
-            | null;
-          const scrapeData = body?.success ? body.data : undefined;
-          if (!scrapeData) {
-            setMode("manual");
-            return;
-          }
-
-          setSaveState("saving");
-          await createScrapedSave(session.user.id, url, scrapeData);
+      // Fire-and-forget: create the save immediately (instant UX), then kick off
+      // scrape-instagram in the background — it updates the DB directly when done.
+      setMode("auto");
+      setSaveState("saving");
+      void (async () => {
+        try {
+          const save = await createPendingSave({
+            userId: session.user.id,
+            url,
+            sourcePlatform: "instagram",
+          });
+          // Don't await — scrape-instagram handles its own DB updates asynchronously.
+          void supabase.functions.invoke("scrape-instagram", {
+            body: { save_id: save.id, url },
+          });
           setSaveState("success");
-          setTimeout(() => {
-            resetShareIntent();
-            router.replace("/(app)");
-          }, 1400);
-        })
-        .catch(() => {
-          // Timeout or network error — fall back to manual popup.
-          setMode("manual");
-        });
-
+          setTimeout(() => { resetShareIntent(); router.replace("/(app)"); }, 1400);
+        } catch {
+          setSaveState("error");
+          setErrorMsg("Couldn't save this link. Try again.");
+        }
+      })();
       return;
     }
 
@@ -149,11 +133,8 @@ export default function ShareScreen() {
   }
 
   // Full-screen states (detecting, auto path, scraping path)
-  if (mode === "auto" || mode === "detecting" || mode === "scraping") {
-    const loadingText =
-      mode === "scraping"
-        ? "Getting details from Instagram…"
-        : "Saving…";
+  if (mode === "auto" || mode === "detecting") {
+    const loadingText = "Saving…";
 
     return (
       <Screen className="items-center justify-center gap-5">

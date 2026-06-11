@@ -100,12 +100,15 @@ export interface ScrapedSaveData {
   hashtags: string[];
   thumbnail_url: string | null;
   owner_username: string | null;
+  owner_full_name: string | null;
+  owner_profile_pic_url: string | null;
   category: SaveCategory;
   category_confidence: number;
   location: {
     raw_name: string;
     resolved_name: string;
     city: string;
+    country: string;
     lat: number;
     lng: number;
     google_place_id: string;
@@ -144,6 +147,7 @@ export async function createScrapedSave(
       lat: data.location.lat,
       lng: data.location.lng,
       city: data.location.city,
+      country: data.location.country,
       google_place_id: data.location.google_place_id,
     });
     if (locError) console.warn("Failed to save location:", locError.message);

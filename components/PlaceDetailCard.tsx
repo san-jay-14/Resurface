@@ -109,7 +109,7 @@ export function PlaceDetailCard({ save, onDismiss, onMarkVisited }: Props) {
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: "flex-end",
   },
   card: {

@@ -25,7 +25,7 @@ import {
   PinCard,
   getSaveTitle,
 } from "@/components/SaveCard";
-import type { Collection, Save } from "@/lib/database.types";
+import type { Collection, Save, SaveLocation } from "@/lib/database.types";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -184,6 +184,7 @@ export default function SaveDetail() {
   const { session } = useAuth();
 
   const [save, setSave] = useState<Save | null>(null);
+  const [location, setLocation] = useState<SaveLocation | null>(null);
   const [loading, setLoading] = useState(true);
   const [noteText, setNoteText] = useState("");
   const [noteExpanded, setNoteExpanded] = useState(false);
@@ -200,10 +201,14 @@ export default function SaveDetail() {
   useEffect(() => {
     if (!id) return;
     const fetch = async () => {
-      const { data, error } = await supabase.from("saves").select("*").eq("id", id).single();
-      if (error || !data) { setLoading(false); return; }
-      setSave(data as Save);
-      setNoteText((data as Save).note ?? "");
+      const [saveRes, locRes] = await Promise.all([
+        supabase.from("saves").select("*").eq("id", id).single(),
+        supabase.from("save_locations").select("*").eq("save_id", id).maybeSingle(),
+      ]);
+      if (saveRes.error || !saveRes.data) { setLoading(false); return; }
+      setSave(saveRes.data as Save);
+      setNoteText((saveRes.data as Save).note ?? "");
+      if (locRes.data) setLocation(locRes.data as SaveLocation);
       setLoading(false);
       // Track last_viewed_at for dormancy calculations
       void supabase.from("saves").update({ last_viewed_at: new Date().toISOString() }).eq("id", id);
@@ -440,8 +445,8 @@ export default function SaveDetail() {
             </Pressable>
           </View>
 
-          {/* ── Category chip (like "author" row in Pinterest) ── */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          {/* ── Category chip + location ── */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
             <View
               style={{
                 width: 24, height: 24, borderRadius: 12,
@@ -452,7 +457,22 @@ export default function SaveDetail() {
               <Text style={{ fontSize: 12 }}>{emoji}</Text>
             </View>
             <Text style={{ color: "#888", fontSize: 13 }}>{label}</Text>
+            {location && (location.city || location.country) && (
+              <>
+                <Text style={{ color: "#444", fontSize: 13 }}>·</Text>
+                <Ionicons name="location-outline" size={13} color="#666" />
+                <Text style={{ color: "#666", fontSize: 13 }}>
+                  {[location.city, location.country].filter(Boolean).join(", ")}
+                </Text>
+              </>
+            )}
           </View>
+          {/* Place name row (places category) */}
+          {location?.place_name && (
+            <Text style={{ color: "#aaa", fontSize: 13, marginBottom: 10 }} numberOfLines={2}>
+              {location.place_name}
+            </Text>
+          )}
 
           {/* ── Title + chevron ── */}
           <View
@@ -488,6 +508,42 @@ export default function SaveDetail() {
               />
             </Pressable>
           </View>
+
+          {/* ── Description (caption or AI description) ── */}
+          {(save.caption || save.ai_description) && (
+            <Text
+              style={{
+                color: "#888", fontSize: 14, lineHeight: 21,
+                marginBottom: 14,
+              }}
+              numberOfLines={5}
+            >
+              {save.caption || save.ai_description}
+            </Text>
+          )}
+
+          {/* ── Keywords / hashtags ── */}
+          {save.keywords && save.keywords.length > 0 && (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 18 }}>
+              {save.keywords.slice(0, 8).map((kw) => (
+                <View
+                  key={kw}
+                  style={{
+                    backgroundColor: "#1A1A1A",
+                    borderRadius: 20,
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderWidth: 1,
+                    borderColor: "#2A2A2A",
+                  }}
+                >
+                  <Text style={{ color: "#666", fontSize: 12 }}>
+                    {kw.startsWith("#") ? kw : `#${kw}`}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           {/* ── Note area ── */}
           {noteExpanded ? (

@@ -15,7 +15,14 @@ import Mapbox, { Camera, MapView, MarkerView } from "@rnmapbox/maps";
 import type { PlaceSave } from "@/lib/database.types";
 import { env } from "@/lib/env";
 
-Mapbox.setAccessToken(env.mapboxToken);
+// Token init is safe at module level once the package is installed.
+// If the native module isn't built yet (Expo Go / no prebuild), this will
+// throw — the component catches it via the error boundary in BoardView.
+try {
+  Mapbox.setAccessToken(env.mapboxToken);
+} catch {
+  // Native Mapbox module not available yet — needs npx expo prebuild + rebuild.
+}
 
 const DEFAULT_CAMERA = {
   centerCoordinate: [78.9629, 20.5937] as [number, number], // India centre [lng, lat]
@@ -133,30 +140,11 @@ export const PlacesMap = memo(function PlacesMap({
     );
   }
 
-  // Empty states
-  if (!loading && saves.length === 0 && unmappedCount === 0) {
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyIcon}>📍</Text>
-        <Text style={styles.emptyTitle}>No places saved yet</Text>
-        <Text style={styles.emptyBody}>
-          Share an Instagram reel of a café, restaurant, or destination to Dibs — it'll show up here.
-        </Text>
-      </View>
-    );
-  }
-
-  if (!loading && saves.length === 0 && unmappedCount > 0) {
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyIcon}>📍</Text>
-        <Text style={styles.emptyTitle}>No spots mapped yet</Text>
-        <Text style={styles.emptyBody}>
-          Your next saves will appear here automatically when location data is available.
-        </Text>
-      </View>
-    );
-  }
+  const isEmpty = !loading && saves.length === 0;
+  const emptyMessage =
+    unmappedCount > 0
+      ? { title: "No spots mapped yet", body: "Your next saves will appear here automatically when location data is available." }
+      : { title: "No places saved yet", body: "Share an Instagram reel of a café, restaurant, or destination to Dibs — it'll show up here." };
 
   const initialBounds = getCameraBounds(saves);
 
@@ -197,6 +185,17 @@ export const PlacesMap = memo(function PlacesMap({
           </MarkerView>
         ))}
       </MapView>
+
+      {/* Empty state — floats over the map so the map is still visible/pannable */}
+      {isEmpty && (
+        <View style={styles.emptyOverlay} pointerEvents="none">
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyIcon}>📍</Text>
+            <Text style={styles.emptyTitle}>{emptyMessage.title}</Text>
+            <Text style={styles.emptyBody}>{emptyMessage.body}</Text>
+          </View>
+        </View>
+      )}
 
       {/* City filter pills — absolute overlay */}
       <View style={styles.cityFilterContainer} pointerEvents="box-none">
@@ -296,24 +295,34 @@ const styles = StyleSheet.create({
   },
   unmappedText: { color: "#888", fontSize: 12 },
 
-  emptyContainer: {
-    flex: 1,
+  emptyOverlay: {
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 40,
+    justifyContent: "flex-end",
+    paddingBottom: 80,
+    paddingHorizontal: 32,
   },
-  emptyIcon: { fontSize: 48, marginBottom: 16, opacity: 0.4 },
+  emptyCard: {
+    backgroundColor: "rgba(20,20,20,0.88)",
+    borderRadius: 20,
+    paddingVertical: 24,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  emptyIcon: { fontSize: 40, marginBottom: 12, opacity: 0.5 },
   emptyTitle: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     textAlign: "center",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   emptyBody: {
-    color: "#666",
-    fontSize: 13,
+    color: "#888",
+    fontSize: 12,
     textAlign: "center",
-    lineHeight: 18,
+    lineHeight: 17,
   },
 });

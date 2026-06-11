@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -81,6 +82,42 @@ function MasonryGrid({
 }
 
 // ---------------------------------------------------------------------------
+// Error boundary — catches Mapbox native-module crashes so the whole screen
+// doesn't go down when the app is run without a native rebuild.
+// ---------------------------------------------------------------------------
+class MapErrorBoundary extends Component<
+  { children: ReactNode },
+  { crashed: boolean }
+> {
+  state = { crashed: false };
+  static getDerivedStateFromError() {
+    return { crashed: true };
+  }
+  render() {
+    if (this.state.crashed) {
+      return (
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 40,
+          }}
+        >
+          <Text
+            style={{ color: "#666", textAlign: "center", fontSize: 13, lineHeight: 20 }}
+          >
+            Map requires a development build.{"\n"}
+            Run: npx expo prebuild --clean
+          </Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Board view — shown when a category tab is active.
 // For the Places tab, adds a grid/map toggle with lazy-loaded map data.
 // ---------------------------------------------------------------------------
@@ -142,22 +179,24 @@ function BoardView({
   // ── Map view ──────────────────────────────────────────────────────────────
   if (category === "places" && viewMode === "map") {
     return (
-      <View style={{ flex: 1 }}>
-        <PlacesMap
-          saves={mapSaves}
-          unmappedCount={unmappedCount}
-          loading={mapLoading}
-          onPinPress={setSelectedSave}
-          onAddLocationPress={() => {}}
-        />
-        {selectedSave && (
-          <PlaceDetailCard
-            save={selectedSave}
-            onDismiss={() => setSelectedSave(null)}
-            onMarkVisited={(id) => void handleMarkVisited(id)}
+      <MapErrorBoundary>
+        <View style={{ flex: 1 }}>
+          <PlacesMap
+            saves={mapSaves}
+            unmappedCount={unmappedCount}
+            loading={mapLoading}
+            onPinPress={setSelectedSave}
+            onAddLocationPress={() => {}}
           />
-        )}
-      </View>
+          {selectedSave && (
+            <PlaceDetailCard
+              save={selectedSave}
+              onDismiss={() => setSelectedSave(null)}
+              onMarkVisited={(id) => void handleMarkVisited(id)}
+            />
+          )}
+        </View>
+      </MapErrorBoundary>
     );
   }
 
