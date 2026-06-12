@@ -15,8 +15,8 @@ export default function BoardConfirmScreen() {
   const count = parseInt(saveCount ?? "0");
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
       <View
         style={{
@@ -31,7 +31,7 @@ export default function BoardConfirmScreen() {
 
         <Text
           style={{
-            color: "#fff", fontSize: 28, fontWeight: "800",
+            color: "#1A1A1A", fontSize: 28, fontWeight: "800",
             textAlign: "center", letterSpacing: -0.5, marginBottom: 8,
           }}
         >
@@ -39,12 +39,12 @@ export default function BoardConfirmScreen() {
         </Text>
 
         {count > 0 && (
-          <Text style={{ color: "#555", fontSize: 13, marginBottom: 40 }}>
+          <Text style={{ color: "#888", fontSize: 13, marginBottom: 40 }}>
             {count} {count === 1 ? "save" : "saves"} so far
           </Text>
         )}
 
-        <Text style={{ color: "#555", fontSize: 13, textAlign: "center", lineHeight: 18, marginBottom: 40 }}>
+        <Text style={{ color: "#888", fontSize: 13, textAlign: "center", lineHeight: 18, marginBottom: 40 }}>
           You've joined! This board is now in your Boards tab.
         </Text>
 
@@ -52,7 +52,7 @@ export default function BoardConfirmScreen() {
           <Pressable
             onPress={() => router.replace("/(app)/profile" as never)}
             style={{
-              flex: 1, borderWidth: 1, borderColor: "#2A2A2A",
+              flex: 1, borderWidth: 1, borderColor: "#E5E5E5",
               borderRadius: 32, paddingVertical: 15, alignItems: "center",
             }}
           >
@@ -67,7 +67,7 @@ export default function BoardConfirmScreen() {
               } as never)
             }
             style={{
-              flex: 1, backgroundColor: "#FF6B4A",
+              flex: 1, backgroundColor: "#9013BB",
               borderRadius: 32, paddingVertical: 15, alignItems: "center",
             }}
           >

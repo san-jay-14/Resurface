@@ -6,20 +6,20 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Warm, Gen-Z palette. Personality lives in copy; UI stays clean + warm.
-        cream: "#FFF8F2",
-        ink: "#1C1714",
+        // Dibs brand palette — white base, purple accent.
+        cream: "#FFFFFF",
+        ink: "#1A1A1A",
         coral: {
-          DEFAULT: "#FF6B4A",
-          dark: "#E8553A",
-          soft: "#FFE7E0",
+          DEFAULT: "#9013BB",
+          dark: "#3A0A57",
+          soft: "#E5BCEC",
         },
-        sand: "#EFE6DC",
-        muted: "#8A7E74",
-        line: "#E7DBCF",
-        // Dark / Pinterest-mode tokens
-        pitch: "#000000",
-        surface: "#1A1A1A",
+        sand: "#F5F5F5",
+        muted: "#888888",
+        line: "#E5E5E5",
+        // Surface tokens (light theme)
+        pitch: "#1A1A1A",
+        surface: "#F5F5F5",
         dim: "#888888",
       },
       fontFamily: {

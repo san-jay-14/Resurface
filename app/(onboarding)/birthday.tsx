@@ -67,11 +67,11 @@ export default function BirthdayStep() {
         style={{
           height: 54, justifyContent: "center",
           borderRadius: 16, borderWidth: 1,
-          borderColor: date ? "#FF6B4A" : "#2A2A2A",
-          backgroundColor: "#111", paddingHorizontal: 18,
+          borderColor: date ? "#9013BB" : "#E5E5E5",
+          backgroundColor: "#F5F5F5", paddingHorizontal: 18,
         }}
       >
-        <Text style={{ color: date ? "#fff" : "#444", fontSize: 16 }}>
+        <Text style={{ color: date ? "#1A1A1A" : "#888", fontSize: 16 }}>
           {date ? formatHuman(date) : "tap to pick a date"}
         </Text>
       </Pressable>
@@ -83,7 +83,7 @@ export default function BirthdayStep() {
           display={Platform.OS === "ios" ? "spinner" : "default"}
           maximumDate={new Date()}
           onChange={onChange}
-          themeVariant="dark"
+          themeVariant="light"
         />
       )}
     </DarkOnboardingScaffold>

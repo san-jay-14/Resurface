@@ -16,7 +16,7 @@
       "googleServicesFile": "./google-services.json",
       "package": "com.resurface.app",
       "adaptiveIcon": {
-        "backgroundColor": "#FFF8F2",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -53,7 +53,7 @@
       [
         "expo-notifications",
         {
-          "color": "#FF6B4A"
+          "color": "#9013BB"
         }
       ],
       [
@@ -66,7 +66,8 @@
             "android:launchMode": "singleTask"
           }
         }
-      ]
+      ],
+      "./plugins/withHeadlessShare"
     ],
     "experiments": {
       "typedRoutes": true

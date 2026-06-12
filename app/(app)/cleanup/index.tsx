@@ -182,9 +182,9 @@ export default function CleanupDeckScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#000", alignItems: "center", justifyContent: "center" }}>
-        <StatusBar style="light" />
-        <ActivityIndicator color="#FF6B4A" size="large" />
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
+        <StatusBar style="dark" />
+        <ActivityIndicator color="#9013BB" size="large" />
       </View>
     );
   }
@@ -194,8 +194,8 @@ export default function CleanupDeckScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
       {/* Header */}
       <View
@@ -208,10 +208,10 @@ export default function CleanupDeckScreen() {
         }}
       >
         <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="close" size={26} color="#fff" />
+          <Ionicons name="close" size={26} color="#1A1A1A" />
         </Pressable>
         <View style={{ flex: 1, alignItems: "center" }}>
-          <Text style={{ color: "#666", fontSize: 13 }}>
+          <Text style={{ color: "#888", fontSize: 13 }}>
             {currentIndex + 1} of {saves.length}
           </Text>
         </View>
@@ -219,10 +219,10 @@ export default function CleanupDeckScreen() {
       </View>
 
       {/* Progress bar */}
-      <View style={{ height: 2, backgroundColor: "#1A1A1A", marginHorizontal: 20, borderRadius: 1, marginBottom: 24 }}>
+      <View style={{ height: 2, backgroundColor: "#F0F0F0", marginHorizontal: 20, borderRadius: 1, marginBottom: 24 }}>
         <View
           style={{
-            height: 2, borderRadius: 1, backgroundColor: "#FF6B4A",
+            height: 2, borderRadius: 1, backgroundColor: "#9013BB",
             width: `${((currentIndex) / saves.length) * 100}%`,
           }}
         />
@@ -236,14 +236,14 @@ export default function CleanupDeckScreen() {
             style={{
               position: "absolute",
               width: CARD_W,
-              backgroundColor: "#111",
+              backgroundColor: "#F5F5F5",
               borderRadius: 24,
               overflow: "hidden",
               opacity: 0.5,
               transform: [{ scale: 0.94 }, { translateY: 14 }],
             }}
           >
-            <View style={{ aspectRatio: 0.75, backgroundColor: "#1A1A1A" }} />
+            <View style={{ aspectRatio: 0.75, backgroundColor: "#E5E5E5" }} />
           </View>
         )}
 
@@ -253,9 +253,11 @@ export default function CleanupDeckScreen() {
             {...panResponder.panHandlers}
             style={{
               width: CARD_W,
-              backgroundColor: "#111",
+              backgroundColor: "#FFFFFF",
               borderRadius: 24,
               overflow: "hidden",
+              borderWidth: 1,
+              borderColor: "#E5E5E5",
               transform: [{ translateX }, { translateY }, { rotate }],
             }}
           >
@@ -287,7 +289,7 @@ export default function CleanupDeckScreen() {
               <View
                 style={{
                   width: "100%", aspectRatio: 0.85,
-                  backgroundColor: "#1A1A1A",
+                  backgroundColor: "#F5F5F5",
                   alignItems: "center", justifyContent: "center",
                 }}
               >
@@ -300,18 +302,18 @@ export default function CleanupDeckScreen() {
               <Text style={{ color: "#888", fontSize: 12, marginBottom: 6 }}>
                 🗓 Saved {timeSince(currentSave.created_at)}
               </Text>
-              <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600", lineHeight: 20 }} numberOfLines={2}>
+              <Text style={{ color: "#1A1A1A", fontSize: 15, fontWeight: "600", lineHeight: 20 }} numberOfLines={2}>
                 {currentSave.title ?? currentSave.ai_description ?? "Saved item"}
               </Text>
               {currentSave.source_platform !== "unsorted" && (
-                <Text style={{ color: "#666", fontSize: 12, marginTop: 4 }}>
+                <Text style={{ color: "#888", fontSize: 12, marginTop: 4 }}>
                   {PLATFORM_LABEL[currentSave.source_platform] ?? currentSave.source_platform}
                 </Text>
               )}
               <View
                 style={{
                   flexDirection: "row", alignItems: "center", gap: 6,
-                  marginTop: 10, backgroundColor: "#1A1A1A",
+                  marginTop: 10, backgroundColor: "#F5F5F5",
                   alignSelf: "flex-start", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
                 }}
               >
@@ -340,10 +342,10 @@ export default function CleanupDeckScreen() {
           }}
           style={{ alignItems: "center", gap: 6 }}
         >
-          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#1A1A1A", alignItems: "center", justifyContent: "center" }}>
+          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" }}>
             <Ionicons name="archive-outline" size={24} color="#EF4444" />
           </View>
-          <Text style={{ color: "#555", fontSize: 11 }}>Archive</Text>
+          <Text style={{ color: "#888", fontSize: 11 }}>Archive</Text>
         </Pressable>
 
         <Pressable
@@ -355,10 +357,10 @@ export default function CleanupDeckScreen() {
           }}
           style={{ alignItems: "center", gap: 6 }}
         >
-          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#1A1A1A", alignItems: "center", justifyContent: "center" }}>
-            <Ionicons name="checkmark-circle-outline" size={24} color="#A855F7" />
+          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" }}>
+            <Ionicons name="checkmark-circle-outline" size={24} color="#9013BB" />
           </View>
-          <Text style={{ color: "#555", fontSize: 11 }}>Done it</Text>
+          <Text style={{ color: "#888", fontSize: 11 }}>Done it</Text>
         </Pressable>
 
         <Pressable
@@ -370,15 +372,15 @@ export default function CleanupDeckScreen() {
           }}
           style={{ alignItems: "center", gap: 6 }}
         >
-          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#1A1A1A", alignItems: "center", justifyContent: "center" }}>
+          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" }}>
             <Ionicons name="heart-outline" size={24} color="#22C55E" />
           </View>
-          <Text style={{ color: "#555", fontSize: 11 }}>Keep</Text>
+          <Text style={{ color: "#888", fontSize: 11 }}>Keep</Text>
         </Pressable>
       </View>
 
       {/* Swipe hint */}
-      <Text style={{ color: "#333", fontSize: 11, textAlign: "center", paddingBottom: 8 }}>
+      <Text style={{ color: "#888", fontSize: 11, textAlign: "center", paddingBottom: 8 }}>
         ← Archive · Keep → · ↑ Done it
       </Text>
 
@@ -389,14 +391,14 @@ export default function CleanupDeckScreen() {
             position: "absolute",
             bottom: Math.max(insets.bottom, 20) + 80,
             left: 20, right: 20,
-            backgroundColor: "#222",
+            backgroundColor: "#1A1A1A",
             borderRadius: 14, flexDirection: "row", alignItems: "center",
             paddingHorizontal: 16, paddingVertical: 12,
           }}
         >
           <Text style={{ color: "#fff", flex: 1, fontSize: 14 }}>Action applied</Text>
           <Pressable onPress={handleUndo}>
-            <Text style={{ color: "#FF6B4A", fontSize: 14, fontWeight: "700" }}>Undo</Text>
+            <Text style={{ color: "#9013BB", fontSize: 14, fontWeight: "700" }}>Undo</Text>
           </Pressable>
         </View>
       )}

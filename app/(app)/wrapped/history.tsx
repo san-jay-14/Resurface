@@ -69,8 +69,8 @@ export default function WrappedHistoryScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
       <View
         style={{
@@ -82,23 +82,23 @@ export default function WrappedHistoryScreen() {
         }}
       >
         <Pressable onPress={() => router.back()} hitSlop={12} style={{ marginRight: 12 }}>
-          <Ionicons name="chevron-back" size={26} color="#fff" />
+          <Ionicons name="chevron-back" size={26} color="#1A1A1A" />
         </Pressable>
-        <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700", flex: 1 }}>Your Wrappeds</Text>
+        <Text style={{ color: "#1A1A1A", fontSize: 18, fontWeight: "700", flex: 1 }}>Your Wrappeds</Text>
         <Pressable
           onPress={handleGenerate}
           disabled={generating}
           style={{
-            backgroundColor: "#1A1A1A", borderRadius: 20,
+            backgroundColor: "#F5F5F5", borderRadius: 20,
             paddingHorizontal: 14, paddingVertical: 8,
             flexDirection: "row", alignItems: "center", gap: 6,
           }}
         >
           {generating
-            ? <ActivityIndicator size="small" color="#FF6B4A" />
+            ? <ActivityIndicator size="small" color="#9013BB" />
             : <>
-                <Ionicons name="refresh-outline" size={14} color="#FF6B4A" />
-                <Text style={{ color: "#FF6B4A", fontSize: 13, fontWeight: "600" }}>Generate</Text>
+                <Ionicons name="refresh-outline" size={14} color="#9013BB" />
+                <Text style={{ color: "#9013BB", fontSize: 13, fontWeight: "600" }}>Generate</Text>
               </>
           }
         </Pressable>
@@ -106,21 +106,21 @@ export default function WrappedHistoryScreen() {
 
       {loading ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator color="#FF6B4A" size="large" />
+          <ActivityIndicator color="#9013BB" size="large" />
         </View>
       ) : wrappeds.length === 0 ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 40 }}>
           <Text style={{ fontSize: 36 }}>🎁</Text>
-          <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 16 }}>
+          <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 16 }}>
             No Wrappeds yet
           </Text>
-          <Text style={{ color: "#666", fontSize: 13, textAlign: "center", lineHeight: 18, marginTop: 8 }}>
+          <Text style={{ color: "#888", fontSize: 13, textAlign: "center", lineHeight: 18, marginTop: 8 }}>
             Save 15+ things and tap Generate to see your first personality card.
           </Text>
           <Pressable
             onPress={handleGenerate}
             disabled={generating}
-            style={{ marginTop: 20, backgroundColor: "#FF6B4A", borderRadius: 24, paddingHorizontal: 24, paddingVertical: 11 }}
+            style={{ marginTop: 20, backgroundColor: "#9013BB", borderRadius: 24, paddingHorizontal: 24, paddingVertical: 11 }}
           >
             {generating
               ? <ActivityIndicator color="#fff" size="small" />
@@ -140,7 +140,7 @@ export default function WrappedHistoryScreen() {
               onPress={() => router.push({ pathname: "/(app)/wrapped/[id]", params: { id: w.id } } as never)}
             >
               <WrappedCard copy={w.copy} stats={w.stats_snapshot} userId={session?.user.id ?? ""} />
-              <Text style={{ color: "#555", fontSize: 12, textAlign: "center", marginTop: 8 }}>
+              <Text style={{ color: "#888", fontSize: 12, textAlign: "center", marginTop: 8 }}>
                 {new Date(w.period_start).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
                 {" · "}tap to open
               </Text>

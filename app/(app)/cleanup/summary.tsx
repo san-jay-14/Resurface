@@ -20,8 +20,8 @@ export default function CleanupSummaryScreen() {
   const pct = total > 0 ? Math.round((a / total) * 100) : 0;
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
       <View
         style={{
@@ -34,31 +34,31 @@ export default function CleanupSummaryScreen() {
 
         <Text
           style={{
-            color: "#fff", fontSize: 26, fontWeight: "800",
+            color: "#1A1A1A", fontSize: 26, fontWeight: "800",
             textAlign: "center", letterSpacing: -0.5, marginBottom: 10,
           }}
         >
           Clean sweep!
         </Text>
 
-        <Text style={{ color: "#666", fontSize: 15, textAlign: "center", lineHeight: 22, marginBottom: 36 }}>
+        <Text style={{ color: "#888", fontSize: 15, textAlign: "center", lineHeight: 22, marginBottom: 36 }}>
           You reviewed {total} {total === 1 ? "save" : "saves"}.
         </Text>
 
         {/* Stats */}
         <View
           style={{
-            backgroundColor: "#111", borderRadius: 20, padding: 24,
+            backgroundColor: "#F5F5F5", borderRadius: 20, padding: 24,
             width: "100%", gap: 14, marginBottom: 36,
           }}
         >
           <StatRow emoji="🗑" label="Archived" value={a} color="#EF4444" />
           <StatRow emoji="💚" label="Kept" value={k} color="#22C55E" />
-          <StatRow emoji="✅" label="Marked done" value={d} color="#A855F7" />
+          <StatRow emoji="✅" label="Marked done" value={d} color="#9013BB" />
         </View>
 
         {pct > 0 && (
-          <Text style={{ color: "#555", fontSize: 14, textAlign: "center", marginBottom: 36 }}>
+          <Text style={{ color: "#888", fontSize: 14, textAlign: "center", marginBottom: 36 }}>
             Your library is {pct}% cleaner.
           </Text>
         )}
@@ -69,7 +69,7 @@ export default function CleanupSummaryScreen() {
             <Pressable
               onPress={() => router.push("/(app)/settings/archived" as never)}
               style={{
-                flex: 1, borderWidth: 1, borderColor: "#2A2A2A",
+                flex: 1, borderWidth: 1, borderColor: "#E5E5E5",
                 borderRadius: 32, paddingVertical: 14, alignItems: "center",
               }}
             >
@@ -79,7 +79,7 @@ export default function CleanupSummaryScreen() {
           <Pressable
             onPress={() => router.replace("/(app)/" as never)}
             style={{
-              flex: 1, backgroundColor: "#FF6B4A",
+              flex: 1, backgroundColor: "#9013BB",
               borderRadius: 32, paddingVertical: 14, alignItems: "center",
             }}
           >

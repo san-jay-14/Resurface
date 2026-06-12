@@ -77,7 +77,7 @@ const PinBubble = memo(function PinBubble({ save }: { save: PlaceSave }) {
 const pinStyles = StyleSheet.create({
   wrapper: { alignItems: "center" },
   bubble: {
-    backgroundColor: "#FF6B35",
+    backgroundColor: "#9013BB",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
@@ -98,7 +98,7 @@ const pinStyles = StyleSheet.create({
     borderTopWidth: 7,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderTopColor: "#FF6B35",
+    borderTopColor: "#9013BB",
     marginTop: -1,
   },
   tailVisited: { borderTopColor: "rgba(40,40,40,0.85)" },
@@ -230,7 +230,7 @@ export const PlacesMap = memo(function PlacesMap({
       {/* Loading overlay */}
       {loading && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator color="#FF6B35" size="small" />
+          <ActivityIndicator color="#9013BB" size="small" />
         </View>
       )}
 
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.12)",
   },
   cityPillActive: {
-    backgroundColor: "#FF6B35",
+    backgroundColor: "#9013BB",
     borderColor: "transparent",
   },
   cityPillText: { color: "#aaa", fontSize: 13, fontWeight: "500" },

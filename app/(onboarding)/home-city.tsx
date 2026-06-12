@@ -44,19 +44,19 @@ export default function HomeCityStep() {
         value={city}
         onChangeText={setCity}
         placeholder="Mumbai, Bengaluru, New York…"
-        placeholderTextColor="#444"
+        placeholderTextColor="#888"
         autoCapitalize="words"
         autoCorrect={false}
         returnKeyType="done"
         onSubmitEditing={onContinue}
         style={{
           height: 54, borderRadius: 16,
-          borderWidth: 1, borderColor: city.length > 0 ? "#FF6B4A" : "#2A2A2A",
-          backgroundColor: "#111", paddingHorizontal: 18,
-          color: "#fff", fontSize: 16,
+          borderWidth: 1, borderColor: city.length > 0 ? "#9013BB" : "#E5E5E5",
+          backgroundColor: "#F5F5F5", paddingHorizontal: 18,
+          color: "#1A1A1A", fontSize: 16,
         }}
       />
-      <Text style={{ color: "#333", fontSize: 13, marginTop: 10 }}>
+      <Text style={{ color: "#888", fontSize: 13, marginTop: 10 }}>
         just the city name is enough.
       </Text>
     </DarkOnboardingScaffold>

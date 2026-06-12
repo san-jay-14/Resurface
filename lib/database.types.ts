@@ -82,6 +82,16 @@ export interface Save {
   scrape_method: string;
   category_confidence: number | null;
   source_username: string | null;
+  sub_category_id: string | null;
+}
+
+export interface UserSubCategory {
+  id: string;
+  user_id: string;
+  category: SaveCategory;
+  name: string;
+  emoji: string;
+  created_at: string;
 }
 
 /** A Places save joined with its location data — used by the map view. */

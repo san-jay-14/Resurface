@@ -21,7 +21,6 @@ import {
   CATEGORY_LABEL,
   PinCard,
 } from "@/components/SaveCard";
-import { TabBar } from "@/components/TabBar";
 import type { Save, SaveCategory, SourcePlatform } from "@/lib/database.types";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
@@ -59,7 +58,7 @@ function BoardCollage({ thumbnails }: { thumbnails: (string | null)[] }) {
     return (
       <View
         style={{
-          height: COLLAGE_H, borderRadius: 14, backgroundColor: "#1A1A1A",
+          height: COLLAGE_H, borderRadius: 14, backgroundColor: "#F5F5F5",
         }}
       />
     );
@@ -84,10 +83,10 @@ function BoardCollage({ thumbnails }: { thumbnails: (string | null)[] }) {
         <Image source={{ uri: t0 }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
-        <View style={{ flex: 1, backgroundColor: "#1A1A1A" }}>
+        <View style={{ flex: 1, backgroundColor: "#E5E5E5" }}>
           <Image source={{ uri: t1 }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
         </View>
-        <View style={{ flex: 1, backgroundColor: "#2A2A2A" }}>
+        <View style={{ flex: 1, backgroundColor: "#F0F0F0" }}>
           {t2
             ? <Image source={{ uri: t2 }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
             : null
@@ -114,7 +113,7 @@ function BoardCard({ item }: { item: BoardItem }) {
     <Pressable onPress={item.onPress} style={{ width: CARD_W }}>
       <BoardCollage thumbnails={item.thumbnails} />
       <Text
-        style={{ color: "#fff", fontSize: 13, fontWeight: "700", marginTop: 8 }}
+        style={{ color: "#1A1A1A", fontSize: 13, fontWeight: "700", marginTop: 8 }}
         numberOfLines={1}
       >
         {item.title}
@@ -165,41 +164,41 @@ function CreateBoardModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }} onPress={onClose} />
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }} onPress={onClose} />
       <View
         style={{
-          backgroundColor: "#111", borderTopLeftRadius: 24, borderTopRightRadius: 24,
+          backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24,
           paddingHorizontal: 20, paddingTop: 20, paddingBottom: 44,
         }}
       >
-        <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 16 }}>
+        <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "700", marginBottom: 16 }}>
           New board
         </Text>
         <TextInput
           value={name}
           onChangeText={setName}
           placeholder="e.g. Goa trip, Diwali shopping…"
-          placeholderTextColor="#555"
+          placeholderTextColor="#888"
           maxLength={50}
           autoFocus
           returnKeyType="done"
           onSubmitEditing={create}
           style={{
-            backgroundColor: "#1A1A1A", borderRadius: 14, paddingHorizontal: 16,
-            paddingVertical: 12, color: "#fff", fontSize: 14, marginBottom: 16,
+            backgroundColor: "#F5F5F5", borderRadius: 14, paddingHorizontal: 16,
+            paddingVertical: 12, color: "#1A1A1A", fontSize: 14, marginBottom: 16,
           }}
         />
         <Pressable
           onPress={create}
           disabled={loading || !name.trim()}
           style={{
-            backgroundColor: name.trim() ? "#FF6B4A" : "#222",
+            backgroundColor: name.trim() ? "#9013BB" : "#F0F0F0",
             borderRadius: 32, paddingVertical: 15, alignItems: "center",
           }}
         >
           {loading
             ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={{ color: name.trim() ? "#fff" : "#555", fontSize: 15, fontWeight: "700" }}>
+            : <Text style={{ color: name.trim() ? "#fff" : "#888", fontSize: 15, fontWeight: "700" }}>
                 Create board
               </Text>
           }
@@ -321,8 +320,8 @@ export default function ProfileScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
       {/* ── Top bar: avatar | tabs | gear ── */}
       <View
@@ -340,13 +339,13 @@ export default function ProfileScreen() {
           <View
             style={{
               width: 38, height: 38, borderRadius: 19, overflow: "hidden",
-              backgroundColor: "#EEEDFE", alignItems: "center", justifyContent: "center",
+              backgroundColor: "#E5BCEC", alignItems: "center", justifyContent: "center",
             }}
           >
             {avatarUrl ? (
               <Image source={{ uri: avatarUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
             ) : (
-              <Text style={{ color: "#1C1714", fontSize: 14, fontWeight: "700" }}>{initials}</Text>
+              <Text style={{ color: "#3A0A57", fontSize: 14, fontWeight: "700" }}>{initials}</Text>
             )}
           </View>
         </Pressable>
@@ -368,7 +367,7 @@ export default function ProfileScreen() {
                 style={{
                   fontSize: 15,
                   fontWeight: active ? "700" : "400",
-                  color: active ? "#fff" : "#666",
+                  color: active ? "#1A1A1A" : "#888",
                 }}
               >
                 {label}
@@ -376,7 +375,7 @@ export default function ProfileScreen() {
               <View
                 style={{
                   height: 2, width: "100%", borderRadius: 1,
-                  backgroundColor: active ? "#fff" : "transparent",
+                  backgroundColor: active ? "#9013BB" : "transparent",
                 }}
               />
             </Pressable>
@@ -400,18 +399,18 @@ export default function ProfileScreen() {
           onPress={() => router.replace("/(app)/search" as never)}
           style={{
             flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
-            backgroundColor: "#1A1A1A", borderRadius: 26,
+            backgroundColor: "#F5F5F5", borderRadius: 26,
             paddingHorizontal: 14, paddingVertical: 11,
           }}
         >
-          <Ionicons name="search" size={16} color="#666" />
-          <Text style={{ color: "#555", fontSize: 15 }}>Search your saves</Text>
+          <Ionicons name="search" size={16} color="#888" />
+          <Text style={{ color: "#888", fontSize: 15 }}>Search your saves</Text>
         </Pressable>
         <Pressable
           onPress={() => setCreateBoardVisible(true)}
           style={{
             width: 44, height: 44, borderRadius: 22,
-            backgroundColor: "#1A1A1A", alignItems: "center", justifyContent: "center",
+            backgroundColor: "#9013BB", alignItems: "center", justifyContent: "center",
           }}
           hitSlop={4}
         >
@@ -422,7 +421,7 @@ export default function ProfileScreen() {
       {/* ── Content ── */}
       {loading ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator color="#FF6B4A" size="large" />
+          <ActivityIndicator color="#9013BB" size="large" />
         </View>
       ) : (
         <ScrollView
@@ -436,18 +435,18 @@ export default function ProfileScreen() {
               onPress={() => router.push("/(app)/wrapped/history" as never)}
               style={{
                 marginHorizontal: 16, marginBottom: 16,
-                backgroundColor: "#1A0A2E",
+                backgroundColor: "#F0E8F7",
                 borderRadius: 16, padding: 14,
                 flexDirection: "row", alignItems: "center", gap: 12,
-                borderWidth: 1, borderColor: "#3A1A5E",
+                borderWidth: 1, borderColor: "#E5BCEC",
               }}
             >
               <Text style={{ fontSize: 28 }}>🎁</Text>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>Your Dibs Wrapped is ready</Text>
-                <Text style={{ color: "#888", fontSize: 12, marginTop: 2 }}>See your saves personality card</Text>
+                <Text style={{ color: "#3A0A57", fontSize: 14, fontWeight: "700" }}>Your Dibs Wrapped is ready</Text>
+                <Text style={{ color: "#9013BB", fontSize: 12, marginTop: 2 }}>See your saves personality card</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#555" />
+              <Ionicons name="chevron-forward" size={16} color="#9013BB" />
             </Pressable>
           )}
 
@@ -456,7 +455,7 @@ export default function ProfileScreen() {
             favourites.length === 0 ? (
               <View style={{ alignItems: "center", paddingTop: 80, paddingHorizontal: 40 }}>
                 <Text style={{ fontSize: 40 }}>♡</Text>
-                <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 16 }}>
+                <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 16 }}>
                   No favourites yet
                 </Text>
                 <Text style={{ color: "#666", fontSize: 13, textAlign: "center", lineHeight: 18, marginTop: 8 }}>
@@ -549,7 +548,7 @@ export default function ProfileScreen() {
                     </Text>
                     <Pressable
                       onPress={() => setCreateBoardVisible(true)}
-                      style={{ marginTop: 16, backgroundColor: "#FF6B4A", borderRadius: 24, paddingHorizontal: 24, paddingVertical: 11 }}
+                      style={{ marginTop: 16, backgroundColor: "#9013BB", borderRadius: 24, paddingHorizontal: 24, paddingVertical: 11 }}
                     >
                       <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>Create board</Text>
                     </Pressable>
@@ -583,11 +582,11 @@ export default function ProfileScreen() {
             platformBoards.length === 0 ? (
               <View style={{ alignItems: "center", paddingTop: 80, paddingHorizontal: 40 }}>
                 <Text style={{ fontSize: 40 }}>🌐</Text>
-                <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 16 }}>
+                <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 16 }}>
                   No saves yet
                 </Text>
                 <Text style={{ color: "#666", fontSize: 13, textAlign: "center", lineHeight: 18, marginTop: 8 }}>
-                  Share something into Resurface and it'll appear here by platform.
+                  Share something into Dibs and it'll appear here by platform.
                 </Text>
               </View>
             ) : (
@@ -629,7 +628,6 @@ export default function ProfileScreen() {
         onClose={() => setCreateBoardVisible(false)}
       />
 
-      <TabBar active="profile" variant="dark" />
     </View>
   );
 }

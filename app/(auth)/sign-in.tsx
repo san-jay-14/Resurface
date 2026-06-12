@@ -20,14 +20,14 @@ type Phase = "intro" | "auth";
 type Pending = "google" | "apple" | "guest" | null;
 
 // ---------------------------------------------------------------------------
-// Dibs wordmark icon (top-left badge on intro)
+// Dibs wordmark badge
 // ---------------------------------------------------------------------------
 function DibsBadge() {
   return (
     <View
       style={{
         width: 48, height: 48, borderRadius: 14,
-        backgroundColor: "#FF6B4A",
+        backgroundColor: "#9013BB",
         alignItems: "center", justifyContent: "center",
       }}
     >
@@ -76,8 +76,8 @@ function IntroPhase({ onGetStarted, onAlreadyHave }: {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#0A0A0A" }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
       {/* Badge */}
       <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 24 }}>
@@ -87,22 +87,22 @@ function IntroPhase({ onGetStarted, onAlreadyHave }: {
       {/* Headline */}
       <View style={{ flex: 1, justifyContent: "center", paddingHorizontal: 24, gap: 0 }}>
         {line(1,
-          <Text style={{ color: "#fff", fontSize: 52, fontWeight: "900", lineHeight: 58, letterSpacing: -2 }}>
+          <Text style={{ color: "#1A1A1A", fontSize: 52, fontWeight: "900", lineHeight: 58, letterSpacing: -2 }}>
             you call dibs{"\n"}on everything.
           </Text>
         )}
         <View style={{ height: 6 }} />
         {line(2,
           <Text style={{ fontSize: 52, fontWeight: "900", lineHeight: 58, letterSpacing: -2 }}>
-            <Text style={{ color: "#fff" }}>do </Text>
-            <Text style={{ color: "#FF6B4A" }}>none</Text>
-            <Text style={{ color: "#fff" }}>{"\n"}of it.</Text>
+            <Text style={{ color: "#1A1A1A" }}>do </Text>
+            <Text style={{ color: "#9013BB" }}>none</Text>
+            <Text style={{ color: "#1A1A1A" }}>{"\n"}of it.</Text>
           </Text>
         )}
         <View style={{ height: 24 }} />
         {line(3,
           <Text style={{
-            color: "rgba(255,255,255,0.45)", fontSize: 20,
+            color: "rgba(26,26,26,0.45)", fontSize: 20,
             fontStyle: "italic", fontWeight: "400", letterSpacing: -0.3,
           }}>
             let's fix that.
@@ -122,7 +122,7 @@ function IntroPhase({ onGetStarted, onAlreadyHave }: {
           <Pressable
             onPress={onGetStarted}
             style={{
-              backgroundColor: "#FF6B4A", borderRadius: 18,
+              backgroundColor: "#9013BB", borderRadius: 18,
               paddingVertical: 18,
               flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
             }}
@@ -136,7 +136,7 @@ function IntroPhase({ onGetStarted, onAlreadyHave }: {
         {line(5,
           <Pressable onPress={onAlreadyHave} style={{ alignItems: "center", paddingVertical: 6 }}>
             <Text style={{
-              color: "rgba(255,255,255,0.3)", fontSize: 11,
+              color: "rgba(26,26,26,0.35)", fontSize: 11,
               fontWeight: "700", letterSpacing: 1.5, textTransform: "uppercase",
             }}>
               I already have an account
@@ -179,35 +179,35 @@ function AuthPhase({
   return (
     <Animated.View
       style={{
-        flex: 1, backgroundColor: "#0A0A0A",
+        flex: 1, backgroundColor: "#FFFFFF",
         opacity: fadeAnim, transform: [{ translateY: slideAnim }],
       }}
     >
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
 
       {/* Back */}
       <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 20 }}>
         <Pressable onPress={onBack} hitSlop={12} style={{ alignSelf: "flex-start" }}>
-          <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 28, lineHeight: 32 }}>←</Text>
+          <Text style={{ color: "rgba(26,26,26,0.4)", fontSize: 28, lineHeight: 32 }}>←</Text>
         </Pressable>
       </View>
 
       {/* Brand */}
       <View style={{ flex: 1, justifyContent: "flex-end", paddingHorizontal: 24, paddingBottom: 48 }}>
         <Text style={{
-          color: "#FF6B4A", fontSize: 44, fontWeight: "900",
+          color: "#9013BB", fontSize: 44, fontWeight: "900",
           letterSpacing: -2, marginBottom: 16,
         }}>
           dibs.
         </Text>
         <Text style={{
-          color: "#fff", fontSize: 32, fontWeight: "800",
+          color: "#1A1A1A", fontSize: 32, fontWeight: "800",
           lineHeight: 38, letterSpacing: -1, marginBottom: 8,
         }}>
           Save it.{"\n"}Actually do it.
         </Text>
         <Text style={{
-          color: "rgba(255,255,255,0.35)", fontSize: 15,
+          color: "rgba(26,26,26,0.4)", fontSize: 15,
           lineHeight: 21, fontWeight: "400",
         }}>
           The app that actually brings your saves back.
@@ -227,7 +227,7 @@ function AuthPhase({
           onPress={onGoogle}
           disabled={pending !== null}
           style={({ pressed }) => ({
-            backgroundColor: "#FF6B4A", borderRadius: 18,
+            backgroundColor: "#9013BB", borderRadius: 18,
             paddingVertical: 17,
             flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
             opacity: pressed || (pending !== null && pending !== "google") ? 0.5 : 1,
@@ -249,7 +249,7 @@ function AuthPhase({
         {Platform.OS === "ios" && (
           <AppleAuthentication.AppleAuthenticationButton
             buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
             cornerRadius={18}
             style={{ height: 54 }}
             onPress={onApple}
@@ -258,9 +258,9 @@ function AuthPhase({
 
         {/* Divider */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 2 }}>
-          <View style={{ flex: 1, height: 1, backgroundColor: "#1E1E1E" }} />
-          <Text style={{ color: "rgba(255,255,255,0.2)", fontSize: 12 }}>or</Text>
-          <View style={{ flex: 1, height: 1, backgroundColor: "#1E1E1E" }} />
+          <View style={{ flex: 1, height: 1, backgroundColor: "#E5E5E5" }} />
+          <Text style={{ color: "rgba(26,26,26,0.3)", fontSize: 12 }}>or</Text>
+          <View style={{ flex: 1, height: 1, backgroundColor: "#E5E5E5" }} />
         </View>
 
         {/* Guest */}
@@ -270,9 +270,9 @@ function AuthPhase({
           style={{ alignItems: "center", paddingVertical: 8 }}
         >
           {pending === "guest" ? (
-            <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>Loading…</Text>
+            <Text style={{ color: "rgba(26,26,26,0.35)", fontSize: 14 }}>Loading…</Text>
           ) : (
-            <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>
+            <Text style={{ color: "rgba(26,26,26,0.35)", fontSize: 14 }}>
               just start saving — no account needed
             </Text>
           )}

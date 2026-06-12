@@ -17,7 +17,7 @@ import { AuthProvider, useAuth } from "@/providers/AuthProvider";
 function Loading() {
   return (
     <View className="flex-1 items-center justify-center bg-cream">
-      <ActivityIndicator color="#FF6B4A" size="large" />
+      <ActivityIndicator color="#9013BB" size="large" />
     </View>
   );
 }
@@ -123,7 +123,7 @@ function RootNavigator() {
     if (handledNotifId.current === notifId) return;
     handledNotifId.current = notifId;
 
-    const data = lastResponse.notification.request.content.data as {
+    const data = (lastResponse.notification.request.content.data ?? {}) as {
       save_id?: string;
       log_id?: string;
     };
@@ -149,7 +149,7 @@ function RootNavigator() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: "#0A0A0A" },
+        contentStyle: { backgroundColor: "#FFFFFF" },
       }}
     />
   );
@@ -160,7 +160,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <AuthProvider>
         <ShareIntentProvider>
-          <StatusBar style="light" />
+          <StatusBar style="dark" />
           <RootNavigator />
         </ShareIntentProvider>
       </AuthProvider>

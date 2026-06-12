@@ -13,7 +13,7 @@ interface DarkOnboardingScaffoldProps {
   step: number;
   totalSteps: number;
   title: string;
-  titleAccent?: string;      // word in the title to highlight coral
+  titleAccent?: string;      // word in the title to highlight purple
   subtitle?: string;
   children?: ReactNode;
   primaryLabel: string;
@@ -34,7 +34,7 @@ function StepDots({ step, total }: { step: number; total: number }) {
             height: 3,
             width: i < step ? 20 : 6,
             borderRadius: 2,
-            backgroundColor: i < step ? "#FF6B4A" : "#2A2A2A",
+            backgroundColor: i < step ? "#9013BB" : "#E5E5E5",
           }}
         />
       ))}
@@ -68,28 +68,27 @@ export function DarkOnboardingScaffold({
     ]).start();
   }, []);
 
-  // Render title with optional accent word
   const renderTitle = () => {
     if (!titleAccent) {
       return (
-        <Text style={{ color: "#fff", fontSize: 34, fontWeight: "800", lineHeight: 40, letterSpacing: -1 }}>
+        <Text style={{ color: "#1A1A1A", fontSize: 34, fontWeight: "800", lineHeight: 40, letterSpacing: -1 }}>
           {title}
         </Text>
       );
     }
     const parts = title.split(titleAccent);
     return (
-      <Text style={{ color: "#fff", fontSize: 34, fontWeight: "800", lineHeight: 40, letterSpacing: -1 }}>
+      <Text style={{ color: "#1A1A1A", fontSize: 34, fontWeight: "800", lineHeight: 40, letterSpacing: -1 }}>
         {parts[0]}
-        <Text style={{ color: "#FF6B4A" }}>{titleAccent}</Text>
+        <Text style={{ color: "#9013BB" }}>{titleAccent}</Text>
         {parts[1]}
       </Text>
     );
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#0A0A0A" }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
       <Animated.View
         style={{
@@ -115,7 +114,7 @@ export function DarkOnboardingScaffold({
           {/* Subtitle */}
           {subtitle && (
             <Text style={{
-              color: "rgba(255,255,255,0.45)", fontSize: 15,
+              color: "rgba(26,26,26,0.45)", fontSize: 15,
               lineHeight: 23, marginTop: 14, fontWeight: "400",
             }}>
               {subtitle}
@@ -136,7 +135,7 @@ export function DarkOnboardingScaffold({
             onPress={onPrimary}
             disabled={primaryLoading || primaryDisabled}
             style={({ pressed }) => ({
-              backgroundColor: primaryDisabled ? "#1E1E1E" : "#FF6B4A",
+              backgroundColor: primaryDisabled ? "#F0F0F0" : "#9013BB",
               borderRadius: 18, paddingVertical: 17,
               alignItems: "center", justifyContent: "center",
               opacity: pressed ? 0.85 : 1,
@@ -146,7 +145,7 @@ export function DarkOnboardingScaffold({
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <Text style={{
-                color: primaryDisabled ? "#444" : "#fff",
+                color: primaryDisabled ? "#888888" : "#fff",
                 fontSize: 16, fontWeight: "700",
               }}>
                 {primaryLabel}
@@ -157,7 +156,7 @@ export function DarkOnboardingScaffold({
           {skipLabel && onSkip && (
             <Pressable onPress={onSkip} style={{ alignItems: "center", paddingVertical: 6 }}>
               <Text style={{
-                color: "rgba(255,255,255,0.25)", fontSize: 13, fontWeight: "500",
+                color: "rgba(26,26,26,0.35)", fontSize: 13, fontWeight: "500",
               }}>
                 {skipLabel}
               </Text>

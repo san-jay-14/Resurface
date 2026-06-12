@@ -55,25 +55,25 @@ export default function WrappedCardScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#000", alignItems: "center", justifyContent: "center" }}>
-        <StatusBar style="light" />
-        <ActivityIndicator color="#FF6B4A" size="large" />
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
+        <StatusBar style="dark" />
+        <ActivityIndicator color="#9013BB" size="large" />
       </View>
     );
   }
 
   if (!wrapped) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#000", alignItems: "center", justifyContent: "center" }}>
-        <StatusBar style="light" />
-        <Text style={{ color: "#666", fontSize: 14 }}>Wrapped not found.</Text>
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
+        <StatusBar style="dark" />
+        <Text style={{ color: "#888", fontSize: 14 }}>Wrapped not found.</Text>
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
       {/* Header */}
       <View
@@ -86,16 +86,16 @@ export default function WrappedCardScreen() {
         }}
       >
         <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={26} color="#fff" />
+          <Ionicons name="chevron-back" size={26} color="#1A1A1A" />
         </Pressable>
-        <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700", flex: 1, textAlign: "center" }}>
+        <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "700", flex: 1, textAlign: "center" }}>
           Your Wrapped
         </Text>
         <View style={{ width: 26 }} />
       </View>
 
       {/* Period label */}
-      <Text style={{ color: "#555", fontSize: 12, textAlign: "center", marginBottom: 20 }}>
+      <Text style={{ color: "#888", fontSize: 12, textAlign: "center", marginBottom: 20 }}>
         {new Date(wrapped.period_start).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
       </Text>
 
@@ -123,18 +123,18 @@ export default function WrappedCardScreen() {
         <Pressable
           onPress={handleShare}
           style={{
-            flex: 1, backgroundColor: "#1A1A1A",
+            flex: 1, backgroundColor: "#F5F5F5",
             borderRadius: 32, paddingVertical: 15, alignItems: "center",
             flexDirection: "row", justifyContent: "center", gap: 8,
           }}
         >
-          <Ionicons name="download-outline" size={18} color="#fff" />
-          <Text style={{ color: "#fff", fontSize: 14, fontWeight: "600" }}>Download</Text>
+          <Ionicons name="download-outline" size={18} color="#1A1A1A" />
+          <Text style={{ color: "#1A1A1A", fontSize: 14, fontWeight: "600" }}>Download</Text>
         </Pressable>
         <Pressable
           onPress={handleShare}
           style={{
-            flex: 1, backgroundColor: "#FF6B4A",
+            flex: 1, backgroundColor: "#9013BB",
             borderRadius: 32, paddingVertical: 15, alignItems: "center",
             flexDirection: "row", justifyContent: "center", gap: 8,
           }}

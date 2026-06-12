@@ -14,7 +14,6 @@ import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CATEGORY_COLORS, CATEGORY_EMOJI, CATEGORY_LABEL } from "@/components/SaveCard";
-import { TabBar } from "@/components/TabBar";
 import type { Collection, SaveCategory } from "@/lib/database.types";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
@@ -169,7 +168,7 @@ export default function BoardsScreen() {
 
       {loading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#FF6B4A" size="large" />
+          <ActivityIndicator color="#9013BB" size="large" />
         </View>
       ) : (
         <FlatList
@@ -253,7 +252,6 @@ export default function BoardsScreen() {
         onClose={() => setCreateVisible(false)}
       />
 
-      <TabBar active="boards" />
     </View>
   );
 }

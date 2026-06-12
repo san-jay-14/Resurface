@@ -56,8 +56,8 @@ export default function WelcomeScreen() {
   }, []);
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#0A0A0A" }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
       <View
         style={{
@@ -74,7 +74,7 @@ export default function WelcomeScreen() {
             style={{
               opacity: anims[i].opacity,
               transform: [{ translateY: anims[i].y }],
-              color: line.accent ? "#FF6B4A" : "#fff",
+              color: line.accent ? "#9013BB" : "#1A1A1A",
               fontSize: 46,
               fontWeight: "900",
               lineHeight: 52,
@@ -90,7 +90,7 @@ export default function WelcomeScreen() {
           style={{
             opacity: subtitleAnim.opacity,
             transform: [{ translateY: subtitleAnim.y }],
-            color: "rgba(255,255,255,0.35)",
+            color: "rgba(26,26,26,0.4)",
             fontSize: 16,
             fontStyle: "italic",
             marginTop: 20,

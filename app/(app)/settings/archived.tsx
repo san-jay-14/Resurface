@@ -84,8 +84,8 @@ export default function ArchivedSavesScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
       <View
         style={{
@@ -97,12 +97,12 @@ export default function ArchivedSavesScreen() {
         }}
       >
         <Pressable onPress={() => router.back()} hitSlop={12} style={{ marginRight: 12 }}>
-          <Ionicons name="chevron-back" size={26} color="#fff" />
+          <Ionicons name="chevron-back" size={26} color="#1A1A1A" />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700" }}>Archived Saves</Text>
+          <Text style={{ color: "#1A1A1A", fontSize: 18, fontWeight: "700" }}>Archived Saves</Text>
           {archives.length > 0 && (
-            <Text style={{ color: "#555", fontSize: 12, marginTop: 1 }}>
+            <Text style={{ color: "#888", fontSize: 12, marginTop: 1 }}>
               Permanently deleted after 30 days
             </Text>
           )}
@@ -111,15 +111,15 @@ export default function ArchivedSavesScreen() {
 
       {loading ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator color="#FF6B4A" size="large" />
+          <ActivityIndicator color="#9013BB" size="large" />
         </View>
       ) : archives.length === 0 ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 40 }}>
           <Text style={{ fontSize: 36 }}>🗑</Text>
-          <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 16 }}>
+          <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 16 }}>
             Nothing archived
           </Text>
-          <Text style={{ color: "#666", fontSize: 13, textAlign: "center", lineHeight: 18, marginTop: 8 }}>
+          <Text style={{ color: "#888", fontSize: 13, textAlign: "center", lineHeight: 18, marginTop: 8 }}>
             Saves you archive during Clean Up will appear here for 30 days.
           </Text>
         </View>
@@ -142,11 +142,11 @@ export default function ArchivedSavesScreen() {
                 style={{
                   flexDirection: "row", alignItems: "center", gap: 12,
                   paddingHorizontal: 16, paddingVertical: 14,
-                  borderBottomWidth: 1, borderBottomColor: "#111",
+                  borderBottomWidth: 1, borderBottomColor: "#E5E5E5",
                 }}
               >
                 {/* Thumbnail */}
-                <View style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", backgroundColor: "#1A1A1A" }}>
+                <View style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", backgroundColor: "#F5F5F5" }}>
                   {save.thumbnail_url ? (
                     <Image source={{ uri: save.thumbnail_url }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
                   ) : (
@@ -158,13 +158,13 @@ export default function ArchivedSavesScreen() {
 
                 {/* Info */}
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }} numberOfLines={1}>
+                  <Text style={{ color: "#1A1A1A", fontSize: 13, fontWeight: "600" }} numberOfLines={1}>
                     {title}
                   </Text>
-                  <Text style={{ color: "#666", fontSize: 11, marginTop: 2 }}>
+                  <Text style={{ color: "#888", fontSize: 11, marginTop: 2 }}>
                     {emoji} {label} · archived {timeSince(archive.archived_at)}
                   </Text>
-                  <Text style={{ color: daysLeft <= 7 ? "#FF6B4A" : "#444", fontSize: 11, marginTop: 1 }}>
+                  <Text style={{ color: daysLeft <= 7 ? "#9013BB" : "#888", fontSize: 11, marginTop: 1 }}>
                     {daysLeft} {daysLeft === 1 ? "day" : "days"} left
                   </Text>
                 </View>
@@ -173,14 +173,14 @@ export default function ArchivedSavesScreen() {
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <Pressable
                     onPress={() => void handleRestore(archive)}
-                    style={{ backgroundColor: "#1A1A1A", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 }}
+                    style={{ backgroundColor: "#F0E8F7", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 }}
                   >
-                    <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>Restore</Text>
+                    <Text style={{ color: "#9013BB", fontSize: 12, fontWeight: "600" }}>Restore</Text>
                   </Pressable>
                   <Pressable
                     onPress={() => handleDelete(archive)}
                     hitSlop={8}
-                    style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: "#1A1A1A", alignItems: "center", justifyContent: "center" }}
+                    style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: "#FFF0F0", alignItems: "center", justifyContent: "center" }}
                   >
                     <Ionicons name="trash-outline" size={15} color="#FF5050" />
                   </Pressable>

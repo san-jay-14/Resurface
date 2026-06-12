@@ -56,16 +56,16 @@ export default function ShareGuideStep() {
         {STEPS.map((s) => (
           <View key={s.n} style={{ flexDirection: "row", gap: 16, alignItems: "flex-start" }}>
             <Text style={{
-              color: "#FF6B4A", fontSize: 11, fontWeight: "800",
+              color: "#9013BB", fontSize: 11, fontWeight: "800",
               letterSpacing: 1, marginTop: 4, width: 22,
             }}>
               {s.n}
             </Text>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 3 }}>
+              <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "700", marginBottom: 3 }}>
                 {s.headline}
               </Text>
-              <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 14, lineHeight: 20 }}>
+              <Text style={{ color: "rgba(26,26,26,0.45)", fontSize: 14, lineHeight: 20 }}>
                 {s.detail}
               </Text>
             </View>

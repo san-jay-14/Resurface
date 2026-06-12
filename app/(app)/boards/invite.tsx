@@ -67,9 +67,9 @@ export default function JoinBoardScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1, backgroundColor: "#000" }}
+      style={{ flex: 1, backgroundColor: "#FFFFFF" }}
     >
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
 
       <View
         style={{
@@ -81,18 +81,18 @@ export default function JoinBoardScreen() {
         }}
       >
         <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={26} color="#fff" />
+          <Ionicons name="chevron-back" size={26} color="#1A1A1A" />
         </Pressable>
-        <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700", flex: 1, marginLeft: 12 }}>
+        <Text style={{ color: "#1A1A1A", fontSize: 18, fontWeight: "700", flex: 1, marginLeft: 12 }}>
           Join a Board
         </Text>
       </View>
 
       <View style={{ flex: 1, paddingHorizontal: 24, paddingTop: 40 }}>
-        <Text style={{ color: "#fff", fontSize: 22, fontWeight: "800", marginBottom: 8 }}>
+        <Text style={{ color: "#1A1A1A", fontSize: 22, fontWeight: "800", marginBottom: 8 }}>
           Enter invite code
         </Text>
-        <Text style={{ color: "#666", fontSize: 14, lineHeight: 20, marginBottom: 32 }}>
+        <Text style={{ color: "#888", fontSize: 14, lineHeight: 20, marginBottom: 32 }}>
           Ask whoever shared the board for their 8-character code.
         </Text>
 
@@ -100,17 +100,17 @@ export default function JoinBoardScreen() {
           value={code}
           onChangeText={(t) => setCode(t.toUpperCase())}
           placeholder="XKTZ8W4P"
-          placeholderTextColor="#333"
+          placeholderTextColor="#888"
           maxLength={8}
           autoCapitalize="characters"
           autoFocus
           returnKeyType="go"
           onSubmitEditing={handleJoin}
           style={{
-            backgroundColor: "#1A1A1A",
+            backgroundColor: "#F5F5F5",
             borderRadius: 16,
             paddingHorizontal: 20, paddingVertical: 18,
-            color: "#fff",
+            color: "#1A1A1A",
             fontSize: 24, fontWeight: "700",
             letterSpacing: 4,
             textAlign: "center",
@@ -122,13 +122,13 @@ export default function JoinBoardScreen() {
           onPress={handleJoin}
           disabled={loading || code.trim().length < 6}
           style={{
-            backgroundColor: code.trim().length >= 6 ? "#FF6B4A" : "#222",
+            backgroundColor: code.trim().length >= 6 ? "#9013BB" : "#F0F0F0",
             borderRadius: 32, paddingVertical: 16, alignItems: "center",
           }}
         >
           {loading
             ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={{ color: code.trim().length >= 6 ? "#fff" : "#555", fontSize: 16, fontWeight: "700" }}>
+            : <Text style={{ color: code.trim().length >= 6 ? "#fff" : "#888", fontSize: 16, fontWeight: "700" }}>
                 Join Board →
               </Text>
           }

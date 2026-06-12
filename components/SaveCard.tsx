@@ -1,7 +1,7 @@
 import { ActivityIndicator, Image, Pressable, Text, View } from "react-native";
 
 // ---------------------------------------------------------------------------
-// PinCard — dark Pinterest-style card used in the home masonry grid
+// PinCard — Pinterest-style card used in the home masonry grid
 // ---------------------------------------------------------------------------
 
 function pinAspectRatio(id: string): number {
@@ -27,7 +27,7 @@ export function BoardDetailCard({ save, onPress, onFavorite }: SaveCardProps) {
   return (
     <Pressable
       onPress={onPress}
-      style={{ borderRadius: 14, overflow: "hidden", backgroundColor: "#1A1A1A" }}
+      style={{ borderRadius: 14, overflow: "hidden", backgroundColor: "#F5F5F5" }}
     >
       {save.thumbnail_url ? (
         <>
@@ -36,7 +36,7 @@ export function BoardDetailCard({ save, onPress, onFavorite }: SaveCardProps) {
             style={{ width: "100%", aspectRatio: ar }}
             resizeMode="cover"
           />
-          {/* Dark overlay + title */}
+          {/* Overlay + title */}
           <View
             style={{
               position: "absolute", bottom: 0, left: 0, right: 0,
@@ -71,7 +71,7 @@ export function BoardDetailCard({ save, onPress, onFavorite }: SaveCardProps) {
         <Text
           style={{
             fontSize: 18,
-            color: save.is_favorite ? "#FFD700" : "rgba(255,255,255,0.75)",
+            color: save.is_favorite ? "#FFD700" : "rgba(26,26,26,0.45)",
           }}
         >
           {save.is_favorite ? "★" : "☆"}
@@ -92,7 +92,7 @@ export function PinCard({ save, onPress }: PinCardProps) {
   return (
     <Pressable
       onPress={onPress}
-      style={{ borderRadius: 14, overflow: "hidden", backgroundColor: "#1A1A1A" }}
+      style={{ borderRadius: 14, overflow: "hidden", backgroundColor: "#F5F5F5" }}
     >
       {save.thumbnail_url ? (
         <View>
@@ -130,7 +130,7 @@ export function PinCard({ save, onPress }: PinCardProps) {
 
       <View style={{ paddingHorizontal: 8, paddingTop: 7, paddingBottom: 9 }}>
         <Text
-          style={{ color: "#FFFFFF", fontSize: 11.5, fontWeight: "500", lineHeight: 15 }}
+          style={{ color: "#1A1A1A", fontSize: 11.5, fontWeight: "500", lineHeight: 15 }}
           numberOfLines={2}
         >
           {title}

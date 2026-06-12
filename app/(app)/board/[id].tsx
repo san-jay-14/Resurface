@@ -16,7 +16,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BoardDetailCard } from "@/components/SaveCard";
-import { TabBar } from "@/components/TabBar";
 import type { Collection, CollectionMember, CollectionSaveReaction, Save } from "@/lib/database.types";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
@@ -41,33 +40,33 @@ function InviteSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }} onPress={onClose} />
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }} onPress={onClose} />
       <View
         style={{
-          backgroundColor: "#111",
+          backgroundColor: "#FFFFFF",
           borderTopLeftRadius: 24, borderTopRightRadius: 24,
           paddingHorizontal: 24, paddingTop: 24,
           paddingBottom: Math.max(insets.bottom, 20) + 12,
           alignItems: "center",
         }}
       >
-        <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: "#333", marginBottom: 24 }} />
-        <Text style={{ color: "#fff", fontSize: 17, fontWeight: "700", marginBottom: 6 }}>
+        <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: "#E5E5E5", marginBottom: 24 }} />
+        <Text style={{ color: "#1A1A1A", fontSize: 17, fontWeight: "700", marginBottom: 6 }}>
           Share this board
         </Text>
-        <Text style={{ color: "#666", fontSize: 13, marginBottom: 28 }}>
+        <Text style={{ color: "#888", fontSize: 13, marginBottom: 28 }}>
           Anyone with this code can join your board.
         </Text>
 
         {/* Code display */}
         <View
           style={{
-            backgroundColor: "#1A1A1A", borderRadius: 16,
+            backgroundColor: "#F5F5F5", borderRadius: 16,
             paddingHorizontal: 32, paddingVertical: 20,
             marginBottom: 24, alignItems: "center",
           }}
         >
-          <Text style={{ color: "#FF6B4A", fontSize: 30, fontWeight: "800", letterSpacing: 6 }}>
+          <Text style={{ color: "#9013BB", fontSize: 30, fontWeight: "800", letterSpacing: 6 }}>
             {code}
           </Text>
         </View>
@@ -76,16 +75,16 @@ function InviteSheet({
           <Pressable
             onPress={() => Share.share({ message: link })}
             style={{
-              flex: 1, backgroundColor: "#1A1A1A",
+              flex: 1, backgroundColor: "#F5F5F5",
               borderRadius: 32, paddingVertical: 15, alignItems: "center",
             }}
           >
-            <Text style={{ color: "#fff", fontSize: 14, fontWeight: "600" }}>Copy Link</Text>
+            <Text style={{ color: "#1A1A1A", fontSize: 14, fontWeight: "600" }}>Copy Link</Text>
           </Pressable>
           <Pressable
             onPress={() => Share.share({ message: `Join my board "${board.name}" on Dibs! Code: ${code}` })}
             style={{
-              flex: 1, backgroundColor: "#FF6B4A",
+              flex: 1, backgroundColor: "#9013BB",
               borderRadius: 32, paddingVertical: 15, alignItems: "center",
             }}
           >
@@ -116,24 +115,24 @@ function SortSheet({
       <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }} onPress={onClose} />
       <View
         style={{
-          backgroundColor: "#111", borderTopLeftRadius: 24, borderTopRightRadius: 24,
+          backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24,
           paddingHorizontal: 24, paddingTop: 20, paddingBottom: 44,
         }}
       >
-        <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700", marginBottom: 16 }}>Sort by</Text>
+        <Text style={{ color: "#1A1A1A", fontSize: 15, fontWeight: "700", marginBottom: 16 }}>Sort by</Text>
         {(["recent", "oldest"] as SortOption[]).map((opt) => (
           <Pressable
             key={opt}
             onPress={() => { onSelect(opt); onClose(); }}
             style={{
               flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-              paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#222",
+              paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#E5E5E5",
             }}
           >
-            <Text style={{ color: "#fff", fontSize: 14 }}>
+            <Text style={{ color: "#1A1A1A", fontSize: 14 }}>
               {opt === "recent" ? "Most recent" : "Oldest first"}
             </Text>
-            {current === opt && <Ionicons name="checkmark" size={18} color="#FF6B4A" />}
+            {current === opt && <Ionicons name="checkmark" size={18} color="#9013BB" />}
           </Pressable>
         ))}
       </View>
@@ -301,8 +300,8 @@ export default function BoardDetail() {
   const isShared = board?.is_shared;
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
       {/* ── Top bar ── */}
       <View
@@ -316,16 +315,16 @@ export default function BoardDetail() {
         }}
       >
         <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={26} color="#fff" />
+          <Ionicons name="chevron-back" size={26} color="#1A1A1A" />
         </Pressable>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
           {isShared && (
             <Pressable onPress={() => setInviteVisible(true)} hitSlop={8}>
-              <Ionicons name="person-add-outline" size={20} color="#fff" />
+              <Ionicons name="person-add-outline" size={20} color="#1A1A1A" />
             </Pressable>
           )}
           <Pressable onPress={handleMoreOptions} hitSlop={8}>
-            <Ionicons name="ellipsis-horizontal" size={22} color="#fff" />
+            <Ionicons name="ellipsis-horizontal" size={22} color="#1A1A1A" />
           </Pressable>
         </View>
       </View>
@@ -333,21 +332,21 @@ export default function BoardDetail() {
       {/* ── Board title + count ── */}
       <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Text style={{ color: "#fff", fontSize: 32, fontWeight: "800", letterSpacing: -0.5, flex: 1 }}>
+          <Text style={{ color: "#1A1A1A", fontSize: 32, fontWeight: "800", letterSpacing: -0.5, flex: 1 }}>
             {name ?? "Board"}
           </Text>
           {isShared && (
-            <View style={{ backgroundColor: "#1A1A1A", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 }}>
-              <Text style={{ color: "#FF6B4A", fontSize: 11, fontWeight: "600" }}>Shared</Text>
+            <View style={{ backgroundColor: "#E5BCEC", borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 }}>
+              <Text style={{ color: "#9013BB", fontSize: 11, fontWeight: "600" }}>Shared</Text>
             </View>
           )}
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6, marginBottom: 4 }}>
-          <Text style={{ color: "#666", fontSize: 13 }}>
+          <Text style={{ color: "#888", fontSize: 13 }}>
             {saves.length} {saves.length === 1 ? "Save" : "Saves"}
           </Text>
           {members.length > 0 && (
-            <Text style={{ color: "#555", fontSize: 12 }}>· {members.length + 1} members</Text>
+            <Text style={{ color: "#888", fontSize: 12 }}>· {members.length + 1} members</Text>
           )}
         </View>
       </View>
@@ -361,31 +360,31 @@ export default function BoardDetail() {
       >
         <View style={{ flexDirection: "row", gap: 24, alignItems: "center" }}>
           <Pressable style={{ alignItems: "center", gap: 5 }}>
-            <Text style={{ color: "#555", fontSize: 15 }}>More ideas</Text>
+            <Text style={{ color: "#888", fontSize: 15 }}>More ideas</Text>
             <View style={{ height: 2 }} />
           </Pressable>
           <Pressable style={{ alignItems: "center", gap: 5 }}>
-            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>All saves</Text>
-            <View style={{ height: 2, width: "100%", backgroundColor: "#fff", borderRadius: 1 }} />
+            <Text style={{ color: "#1A1A1A", fontSize: 15, fontWeight: "700" }}>All saves</Text>
+            <View style={{ height: 2, width: "100%", backgroundColor: "#9013BB", borderRadius: 1 }} />
           </Pressable>
         </View>
         <Pressable onPress={() => setSortVisible(true)} hitSlop={8}>
-          <Ionicons name="options-outline" size={22} color="#fff" />
+          <Ionicons name="options-outline" size={22} color="#1A1A1A" />
         </Pressable>
       </View>
 
       {/* ── Content ── */}
       {loading ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator color="#FF6B4A" size="large" />
+          <ActivityIndicator color="#9013BB" size="large" />
         </View>
       ) : saves.length === 0 ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 40 }}>
           <Text style={{ fontSize: 36 }}>📋</Text>
-          <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 16 }}>
+          <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 16 }}>
             Board is empty
           </Text>
-          <Text style={{ color: "#666", fontSize: 13, textAlign: "center", lineHeight: 18, marginTop: 8 }}>
+          <Text style={{ color: "#888", fontSize: 13, textAlign: "center", lineHeight: 18, marginTop: 8 }}>
             Open a save's detail view to add it here.
           </Text>
         </View>
@@ -398,7 +397,7 @@ export default function BoardDetail() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => { setRefreshing(true); void fetchAll(true); }}
-              tintColor="#FF6B4A"
+              tintColor="#9013BB"
             />
           }
         >
@@ -426,7 +425,7 @@ export default function BoardDetail() {
                           onPress={() => void handleReaction(save.id, "in")}
                           style={{
                             flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-                            gap: 4, backgroundColor: myReaction?.reaction === "in" ? "#22C55E22" : "#1A1A1A",
+                            gap: 4, backgroundColor: myReaction?.reaction === "in" ? "#22C55E22" : "#F5F5F5",
                             borderRadius: 20, paddingVertical: 6,
                             borderWidth: 1,
                             borderColor: myReaction?.reaction === "in" ? "#22C55E" : "transparent",
@@ -441,7 +440,7 @@ export default function BoardDetail() {
                           onPress={() => void handleReaction(save.id, "pass")}
                           style={{
                             width: 36, alignItems: "center", justifyContent: "center",
-                            backgroundColor: myReaction?.reaction === "pass" ? "#EF444422" : "#1A1A1A",
+                            backgroundColor: myReaction?.reaction === "pass" ? "#EF444422" : "#F5F5F5",
                             borderRadius: 20,
                             borderWidth: 1,
                             borderColor: myReaction?.reaction === "pass" ? "#EF4444" : "transparent",
@@ -478,7 +477,7 @@ export default function BoardDetail() {
                           onPress={() => void handleReaction(save.id, "in")}
                           style={{
                             flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-                            gap: 4, backgroundColor: myReaction?.reaction === "in" ? "#22C55E22" : "#1A1A1A",
+                            gap: 4, backgroundColor: myReaction?.reaction === "in" ? "#22C55E22" : "#F5F5F5",
                             borderRadius: 20, paddingVertical: 6,
                             borderWidth: 1,
                             borderColor: myReaction?.reaction === "in" ? "#22C55E" : "transparent",
@@ -493,7 +492,7 @@ export default function BoardDetail() {
                           onPress={() => void handleReaction(save.id, "pass")}
                           style={{
                             width: 36, alignItems: "center", justifyContent: "center",
-                            backgroundColor: myReaction?.reaction === "pass" ? "#EF444422" : "#1A1A1A",
+                            backgroundColor: myReaction?.reaction === "pass" ? "#EF444422" : "#F5F5F5",
                             borderRadius: 20,
                             borderWidth: 1,
                             borderColor: myReaction?.reaction === "pass" ? "#EF4444" : "transparent",
@@ -517,7 +516,7 @@ export default function BoardDetail() {
           position: "absolute",
           bottom: Math.max(insets.bottom, 12) + 16,
           left: 28, right: 28,
-          backgroundColor: "#2A2A2A",
+          backgroundColor: "#1A1A1A",
           borderRadius: 40,
           flexDirection: "row",
           paddingVertical: 13, paddingHorizontal: 8,
@@ -555,7 +554,6 @@ export default function BoardDetail() {
         <InviteSheet visible={inviteVisible} board={board} onClose={() => setInviteVisible(false)} />
       )}
 
-      <TabBar active="boards" variant="dark" />
     </View>
   );
 }

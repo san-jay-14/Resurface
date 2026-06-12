@@ -103,11 +103,11 @@ function CollectionsPicker({
       <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }} onPress={onClose} />
       <View
         style={{
-          backgroundColor: "#111", borderTopLeftRadius: 24, borderTopRightRadius: 24,
+          backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24,
           paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, maxHeight: "60%",
         }}
       >
-        <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 16 }}>
+        <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "700", marginBottom: 16 }}>
           Add to board
         </Text>
         <ScrollView>
@@ -119,16 +119,16 @@ function CollectionsPicker({
                 onPress={() => void toggle(col)}
                 style={{
                   flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                  paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#222",
+                  paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#E5E5E5",
                 }}
               >
-                <Text style={{ color: "#fff", fontSize: 14 }}>{col.name}</Text>
+                <Text style={{ color: "#1A1A1A", fontSize: 14 }}>{col.name}</Text>
                 <View
                   style={{
                     width: 22, height: 22, borderRadius: 6,
                     borderWidth: 1.5,
-                    borderColor: on ? "#FF6B4A" : "#444",
-                    backgroundColor: on ? "#FF6B4A" : "transparent",
+                    borderColor: on ? "#9013BB" : "#E5E5E5",
+                    backgroundColor: on ? "#9013BB" : "transparent",
                     alignItems: "center", justifyContent: "center",
                   }}
                 >
@@ -146,8 +146,8 @@ function CollectionsPicker({
             placeholderTextColor="#555"
             maxLength={50}
             style={{
-              flex: 1, backgroundColor: "#1A1A1A", borderRadius: 14,
-              paddingHorizontal: 14, paddingVertical: 10, color: "#fff", fontSize: 14,
+              flex: 1, backgroundColor: "#F5F5F5", borderRadius: 14,
+              paddingHorizontal: 14, paddingVertical: 10, color: "#1A1A1A", fontSize: 14,
             }}
             returnKeyType="done"
             onSubmitEditing={create}
@@ -156,7 +156,7 @@ function CollectionsPicker({
             onPress={create}
             disabled={creating || !newName.trim()}
             style={{
-              backgroundColor: newName.trim() ? "#FF6B4A" : "#222",
+              backgroundColor: newName.trim() ? "#9013BB" : "#F0F0F0",
               borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10,
               alignItems: "center", justifyContent: "center",
             }}
@@ -301,23 +301,23 @@ export default function SaveDetail() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#000", alignItems: "center", justifyContent: "center" }}>
-        <StatusBar style="light" />
-        <ActivityIndicator color="#FF6B4A" size="large" />
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
+        <StatusBar style="dark" />
+        <ActivityIndicator color="#9013BB" size="large" />
       </View>
     );
   }
 
   if (!save) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#000", alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
-        <StatusBar style="light" />
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
+        <StatusBar style="dark" />
         <Text style={{ fontSize: 32 }}>🤔</Text>
-        <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 16 }}>
+        <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 16 }}>
           Save not found
         </Text>
         <Pressable onPress={() => router.back()} style={{ marginTop: 16 }}>
-          <Text style={{ color: "#FF6B4A", fontSize: 14, fontWeight: "600" }}>Go back</Text>
+          <Text style={{ color: "#9013BB", fontSize: 14, fontWeight: "600" }}>Go back</Text>
         </Pressable>
       </View>
     );
@@ -333,8 +333,8 @@ export default function SaveDetail() {
   const rightMore = moreSaves.filter((_, i) => i % 2 !== 0);
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -396,7 +396,7 @@ export default function SaveDetail() {
               <Ionicons
                 name={save.is_favorite ? "heart" : "heart-outline"}
                 size={26}
-                color={save.is_favorite ? "#E05888" : "#fff"}
+                color={save.is_favorite ? "#E05888" : "#1A1A1A"}
               />
             </Pressable>
 
@@ -409,8 +409,8 @@ export default function SaveDetail() {
               hitSlop={8}
               style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
             >
-              <Ionicons name="chatbubble-outline" size={24} color="#fff" />
-              {save.note && <Text style={{ color: "#fff", fontSize: 13 }}>1</Text>}
+              <Ionicons name="chatbubble-outline" size={24} color="#1A1A1A" />
+              {save.note && <Text style={{ color: "#1A1A1A", fontSize: 13 }}>1</Text>}
             </Pressable>
 
             {/* Share */}
@@ -418,13 +418,13 @@ export default function SaveDetail() {
               <Ionicons
                 name="share-outline"
                 size={24}
-                color={save.source_url ? "#fff" : "#444"}
+                color={save.source_url ? "#1A1A1A" : "#C0C0C0"}
               />
             </Pressable>
 
             {/* More (...) */}
             <Pressable onPress={handleMoreOptions} hitSlop={8}>
-              <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
+              <Ionicons name="ellipsis-horizontal" size={24} color="#1A1A1A" />
             </Pressable>
 
             <View style={{ flex: 1 }} />
@@ -433,7 +433,7 @@ export default function SaveDetail() {
             <Pressable
               onPress={toggleActedOn}
               style={{
-                backgroundColor: save.acted_on ? "#2A5C0A" : "#FF6B4A",
+                backgroundColor: save.acted_on ? "#2A5C0A" : "#9013BB",
                 borderRadius: 26,
                 paddingHorizontal: 22,
                 paddingVertical: 13,
@@ -483,7 +483,7 @@ export default function SaveDetail() {
           >
             <Text
               style={{
-                flex: 1, color: "#fff", fontSize: 22,
+                flex: 1, color: "#1A1A1A", fontSize: 22,
                 fontWeight: "800", lineHeight: 28,
               }}
               numberOfLines={noteExpanded ? undefined : 2}
@@ -496,7 +496,7 @@ export default function SaveDetail() {
                 if (!noteExpanded) setTimeout(() => noteRef.current?.focus(), 60);
               }}
               style={{
-                backgroundColor: "#2A2A2A", borderRadius: 10,
+                backgroundColor: "#F5F5F5", borderRadius: 10,
                 width: 34, height: 34, alignItems: "center", justifyContent: "center",
                 marginTop: 2,
               }}
@@ -504,7 +504,7 @@ export default function SaveDetail() {
               <Ionicons
                 name={noteExpanded ? "chevron-up" : "chevron-down"}
                 size={15}
-                color="#fff"
+                color="#1A1A1A"
               />
             </Pressable>
           </View>
@@ -529,15 +529,15 @@ export default function SaveDetail() {
                 <View
                   key={kw}
                   style={{
-                    backgroundColor: "#1A1A1A",
+                    backgroundColor: "#F5F5F5",
                     borderRadius: 20,
                     paddingHorizontal: 10,
                     paddingVertical: 4,
                     borderWidth: 1,
-                    borderColor: "#2A2A2A",
+                    borderColor: "#E5E5E5",
                   }}
                 >
-                  <Text style={{ color: "#666", fontSize: 12 }}>
+                  <Text style={{ color: "#888", fontSize: 12 }}>
                     {kw.startsWith("#") ? kw : `#${kw}`}
                   </Text>
                 </View>
@@ -549,7 +549,7 @@ export default function SaveDetail() {
           {noteExpanded ? (
             <View
               style={{
-                backgroundColor: "#1A1A1A", borderRadius: 16,
+                backgroundColor: "#F5F5F5", borderRadius: 16,
                 padding: 14, marginBottom: 18,
               }}
             >
@@ -560,9 +560,9 @@ export default function SaveDetail() {
                 multiline
                 maxLength={280}
                 placeholder="Why did you save this?"
-                placeholderTextColor="#555"
+                placeholderTextColor="#888"
                 style={{
-                  color: "#fff", fontSize: 14, lineHeight: 21,
+                  color: "#1A1A1A", fontSize: 14, lineHeight: 21,
                   minHeight: 64,
                 }}
               />
@@ -572,11 +572,11 @@ export default function SaveDetail() {
                   alignItems: "center", marginTop: 10,
                 }}
               >
-                <Text style={{ color: "#555", fontSize: 12 }}>{noteText.length}/280</Text>
+                <Text style={{ color: "#888", fontSize: 12 }}>{noteText.length}/280</Text>
                 <Pressable
                   onPress={saveNote}
                   style={{
-                    backgroundColor: "#FF6B4A", borderRadius: 10,
+                    backgroundColor: "#9013BB", borderRadius: 10,
                     paddingHorizontal: 16, paddingVertical: 7,
                   }}
                 >

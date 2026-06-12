@@ -76,7 +76,7 @@ export function WrappedCard({ copy, stats, userId = "" }: WrappedCardProps) {
         {/* Label */}
         <Text
           style={{
-            color: "#FF6B4A", fontSize: 20, fontWeight: "700",
+            color: "#E5BCEC", fontSize: 20, fontWeight: "700",
             letterSpacing: -0.3,
           }}
         >
@@ -119,7 +119,7 @@ export function WrappedCard({ copy, stats, userId = "" }: WrappedCardProps) {
                 style={{
                   width: "100%",
                   height: Math.max(4, (item.count / maxCat) * 36),
-                  backgroundColor: i === 0 ? "#FF6B4A" : "rgba(255,255,255,0.15)",
+                  backgroundColor: i === 0 ? "#E5BCEC" : "rgba(255,255,255,0.15)",
                   borderRadius: 4,
                 }}
               />

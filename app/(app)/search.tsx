@@ -15,7 +15,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CATEGORY_COLORS, CATEGORY_EMOJI, CATEGORY_LABEL, getSaveTitle } from "@/components/SaveCard";
-import { TabBar } from "@/components/TabBar";
 import type { Save } from "@/lib/database.types";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
@@ -82,7 +81,7 @@ function RecentRow({
           height: 60,
           borderRadius: 10,
           overflow: "hidden",
-          backgroundColor: "#1A1A1A",
+          backgroundColor: "#F5F5F5",
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -90,10 +89,10 @@ function RecentRow({
         {item.thumbnail ? (
           <Image source={{ uri: item.thumbnail }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
         ) : (
-          <Ionicons name="search-outline" size={22} color="#555" />
+          <Ionicons name="search-outline" size={22} color="#888" />
         )}
       </View>
-      <Text style={{ flex: 1, color: "#fff", fontSize: 15, fontWeight: "600" }}>
+      <Text style={{ flex: 1, color: "#1A1A1A", fontSize: 15, fontWeight: "600" }}>
         {item.term}
       </Text>
       <Pressable onPress={onRemove} hitSlop={10}>
@@ -135,7 +134,7 @@ function ResultRow({ save, onPress }: { save: Save; onPress: () => void }) {
         )}
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ color: "#fff", fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
+        <Text style={{ color: "#1A1A1A", fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
           {title}
         </Text>
         <Text style={{ color: "#666", fontSize: 12, marginTop: 2 }}>{label}</Text>
@@ -216,8 +215,8 @@ export default function SearchScreen() {
   const isEmpty = query.trim().length === 0;
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
       {/* Search bar row */}
       <View
@@ -236,34 +235,34 @@ export default function SearchScreen() {
             flex: 1,
             flexDirection: "row",
             alignItems: "center",
-            backgroundColor: "#1A1A1A",
+            backgroundColor: "#F5F5F5",
             borderRadius: 26,
             paddingHorizontal: 14,
             paddingVertical: 10,
             gap: 8,
           }}
         >
-          <Ionicons name="search" size={16} color="#666" />
+          <Ionicons name="search" size={16} color="#888" />
           <TextInput
             ref={inputRef}
             value={query}
             onChangeText={handleChange}
             onSubmitEditing={() => commitSearch(query, results[0]?.thumbnail_url ?? null)}
             placeholder="Search your saves"
-            placeholderTextColor="#555"
+            placeholderTextColor="#888"
             returnKeyType="search"
-            style={{ flex: 1, color: "#fff", fontSize: 15 }}
+            style={{ flex: 1, color: "#1A1A1A", fontSize: 15 }}
           />
           {query.length > 0 && (
             <Pressable onPress={clearQuery} hitSlop={8}>
-              <Ionicons name="close-circle" size={18} color="#555" />
+              <Ionicons name="close-circle" size={18} color="#888" />
             </Pressable>
           )}
         </View>
 
         {/* Cancel */}
         <Pressable onPress={() => router.replace("/(app)/" as never)}>
-          <Text style={{ color: "#fff", fontSize: 15 }}>Cancel</Text>
+          <Text style={{ color: "#9013BB", fontSize: 15, fontWeight: "600" }}>Cancel</Text>
         </Pressable>
       </View>
 
@@ -295,7 +294,7 @@ export default function SearchScreen() {
         />
       ) : searching ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator color="#FF6B4A" size="small" />
+          <ActivityIndicator color="#9013BB" size="small" />
         </View>
       ) : (
         <FlatList
@@ -333,7 +332,6 @@ export default function SearchScreen() {
         />
       )}
 
-      <TabBar active="search" variant="dark" />
     </View>
   );
 }

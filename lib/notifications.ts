@@ -21,9 +21,9 @@ Notifications.setNotificationHandler({
 export async function ensureAndroidChannel() {
   if (Platform.OS !== "android") return;
   await Notifications.setNotificationChannelAsync("default", {
-    name: "Resurface",
+    name: "Dibs",
     importance: Notifications.AndroidImportance.DEFAULT,
-    lightColor: "#FF6B4A",
+    lightColor: "#9013BB",
   });
 }
 

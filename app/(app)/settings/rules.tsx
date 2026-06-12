@@ -120,17 +120,17 @@ function AddRuleSheet({
       />
       <View
         style={{
-          backgroundColor: "#111",
+          backgroundColor: "#FFFFFF",
           borderTopLeftRadius: 24, borderTopRightRadius: 24,
           paddingHorizontal: 20, paddingTop: 20,
           paddingBottom: Math.max(insets.bottom, 20) + 12,
         }}
       >
-        <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: "#333", alignSelf: "center", marginBottom: 20 }} />
+        <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: "#E5E5E5", alignSelf: "center", marginBottom: 20 }} />
 
         {confirmation ? (
           <View>
-            <Text style={{ color: "#fff", fontSize: 15, lineHeight: 22, marginBottom: 20 }}>
+            <Text style={{ color: "#1A1A1A", fontSize: 15, lineHeight: 22, marginBottom: 20 }}>
               {confirmation}
             </Text>
             <Text style={{ color: "#888", fontSize: 13, marginBottom: 24 }}>
@@ -139,13 +139,13 @@ function AddRuleSheet({
             <View style={{ flexDirection: "row", gap: 10 }}>
               <Pressable
                 onPress={handleRetroactive}
-                style={{ flex: 1, backgroundColor: "#FF6B4A", borderRadius: 32, paddingVertical: 15, alignItems: "center" }}
+                style={{ flex: 1, backgroundColor: "#9013BB", borderRadius: 32, paddingVertical: 15, alignItems: "center" }}
               >
                 <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>Apply</Text>
               </Pressable>
               <Pressable
                 onPress={handleClose}
-                style={{ flex: 1, backgroundColor: "#1A1A1A", borderRadius: 32, paddingVertical: 15, alignItems: "center" }}
+                style={{ flex: 1, backgroundColor: "#F5F5F5", borderRadius: 32, paddingVertical: 15, alignItems: "center" }}
               >
                 <Text style={{ color: "#888", fontSize: 15 }}>Skip</Text>
               </Pressable>
@@ -153,24 +153,24 @@ function AddRuleSheet({
           </View>
         ) : (
           <View>
-            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 6 }}>
+            <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "700", marginBottom: 6 }}>
               Tell Dibs how to sort your saves
             </Text>
-            <Text style={{ color: "#555", fontSize: 13, marginBottom: 16 }}>
+            <Text style={{ color: "#888", fontSize: 13, marginBottom: 16 }}>
               e.g. "Put anything from @zara into Shopping"
             </Text>
             <TextInput
               value={text}
               onChangeText={setText}
               placeholder="Type your rule in plain English..."
-              placeholderTextColor="#444"
+              placeholderTextColor="#888"
               multiline
               maxLength={300}
               autoFocus
               style={{
-                backgroundColor: "#1A1A1A", borderRadius: 14,
+                backgroundColor: "#F5F5F5", borderRadius: 14,
                 paddingHorizontal: 16, paddingVertical: 14,
-                color: "#fff", fontSize: 14, lineHeight: 20,
+                color: "#1A1A1A", fontSize: 14, lineHeight: 20,
                 minHeight: 90, marginBottom: 16, textAlignVertical: "top",
               }}
             />
@@ -178,13 +178,13 @@ function AddRuleSheet({
               onPress={handleSubmit}
               disabled={loading || !text.trim()}
               style={{
-                backgroundColor: text.trim() ? "#FF6B4A" : "#222",
+                backgroundColor: text.trim() ? "#9013BB" : "#F0F0F0",
                 borderRadius: 32, paddingVertical: 15, alignItems: "center",
               }}
             >
               {loading
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={{ color: text.trim() ? "#fff" : "#555", fontSize: 15, fontWeight: "700" }}>
+                : <Text style={{ color: text.trim() ? "#fff" : "#888", fontSize: 15, fontWeight: "700" }}>
                     Add Rule →
                   </Text>
               }
@@ -270,8 +270,8 @@ export default function RulesScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
       <View
         style={{
@@ -283,14 +283,14 @@ export default function RulesScreen() {
         }}
       >
         <Pressable onPress={() => router.back()} hitSlop={12} style={{ marginRight: 12 }}>
-          <Ionicons name="chevron-back" size={26} color="#fff" />
+          <Ionicons name="chevron-back" size={26} color="#1A1A1A" />
         </Pressable>
-        <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700", flex: 1 }}>My Rules</Text>
+        <Text style={{ color: "#1A1A1A", fontSize: 18, fontWeight: "700", flex: 1 }}>My Rules</Text>
         <Pressable
           onPress={() => setAddVisible(true)}
           style={{
             flexDirection: "row", alignItems: "center", gap: 6,
-            backgroundColor: "#1A1A1A", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
+            backgroundColor: "#9013BB", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
           }}
         >
           <Ionicons name="add" size={16} color="#fff" />
@@ -300,20 +300,20 @@ export default function RulesScreen() {
 
       {loading ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator color="#FF6B4A" size="large" />
+          <ActivityIndicator color="#9013BB" size="large" />
         </View>
       ) : rules.length === 0 ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 40 }}>
           <Text style={{ fontSize: 36 }}>⚡</Text>
-          <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 16 }}>
+          <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "600", textAlign: "center", marginTop: 16 }}>
             No rules yet
           </Text>
-          <Text style={{ color: "#666", fontSize: 13, textAlign: "center", lineHeight: 18, marginTop: 8 }}>
+          <Text style={{ color: "#888", fontSize: 13, textAlign: "center", lineHeight: 18, marginTop: 8 }}>
             Rules let Dibs categorise your saves automatically. Tap "Add Rule" to get started.
           </Text>
           <Pressable
             onPress={() => setAddVisible(true)}
-            style={{ marginTop: 20, backgroundColor: "#FF6B4A", borderRadius: 24, paddingHorizontal: 24, paddingVertical: 11 }}
+            style={{ marginTop: 20, backgroundColor: "#9013BB", borderRadius: 24, paddingHorizontal: 24, paddingVertical: 11 }}
           >
             <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>Add your first rule</Text>
           </Pressable>
@@ -335,14 +335,14 @@ export default function RulesScreen() {
                 <Switch
                   value={rule.is_active}
                   onValueChange={() => void toggleRule(rule)}
-                  trackColor={{ false: "#2A2A2A", true: "#FF6B4A" }}
+                  trackColor={{ false: "#E5E5E5", true: "#9013BB" }}
                   thumbColor="#fff"
                 />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: "#fff", fontSize: 14, lineHeight: 19 }} numberOfLines={2}>
+                  <Text style={{ color: "#1A1A1A", fontSize: 14, lineHeight: 19 }} numberOfLines={2}>
                     {rule.raw_text}
                   </Text>
-                  <Text style={{ color: "#555", fontSize: 11, marginTop: 3 }}>
+                  <Text style={{ color: "#888", fontSize: 11, marginTop: 3 }}>
                     {rule.hit_count > 0
                       ? `Matched ${rule.hit_count} ${rule.hit_count === 1 ? "save" : "saves"}`
                       : "Never triggered yet"
@@ -363,7 +363,7 @@ export default function RulesScreen() {
                   <Ionicons name="ellipsis-vertical" size={18} color="#555" />
                 </Pressable>
               </View>
-              {i < rules.length - 1 && <View style={{ height: 1, backgroundColor: "#111", marginLeft: 80 }} />}
+              {i < rules.length - 1 && <View style={{ height: 1, backgroundColor: "#E5E5E5", marginLeft: 80 }} />}
             </View>
           ))}
         </ScrollView>

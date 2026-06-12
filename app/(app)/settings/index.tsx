@@ -32,34 +32,34 @@ function SettingsRow({ icon, label, onPress, value, danger }: RowProps) {
             paddingHorizontal: 16,
             paddingVertical: 14,
             minHeight: 52,
-            backgroundColor: pressed ? "#111" : "transparent",
+            backgroundColor: pressed ? "#F5F5F5" : "transparent",
           }}
         >
           <View
             style={{
               width: 34, height: 34, borderRadius: 10,
-              backgroundColor: danger ? "rgba(255,80,80,0.15)" : "#1A1A1A",
+              backgroundColor: danger ? "rgba(255,80,80,0.1)" : "#F0E8F7",
               alignItems: "center", justifyContent: "center",
             }}
           >
-            <Ionicons name={icon as never} size={17} color={danger ? "#FF5050" : "#999"} />
+            <Ionicons name={icon as never} size={17} color={danger ? "#FF5050" : "#9013BB"} />
           </View>
           <Text
             numberOfLines={1}
             style={{
               flex: 1,
               fontSize: 15,
-              color: danger ? "#FF5050" : "#fff",
+              color: danger ? "#FF5050" : "#1A1A1A",
               marginLeft: 14,
             }}
           >
             {label}
           </Text>
           {value ? (
-            <Text style={{ fontSize: 13, color: "#555", marginRight: 6 }}>{value}</Text>
+            <Text style={{ fontSize: 13, color: "#888", marginRight: 6 }}>{value}</Text>
           ) : null}
           {!danger ? (
-            <Ionicons name="chevron-forward" size={15} color="#444" />
+            <Ionicons name="chevron-forward" size={15} color="#C0C0C0" />
           ) : null}
         </View>
       )}
@@ -82,7 +82,7 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 function Divider() {
-  return <View style={{ height: 1, backgroundColor: "#111", marginLeft: 64 }} />;
+  return <View style={{ height: 1, backgroundColor: "#E5E5E5", marginLeft: 64 }} />;
 }
 
 export default function SettingsScreen() {
@@ -115,8 +115,8 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
       {/* ── Top bar ── */}
       <View
@@ -130,9 +130,9 @@ export default function SettingsScreen() {
         }}
       >
         <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={26} color="#fff" />
+          <Ionicons name="chevron-back" size={26} color="#1A1A1A" />
         </Pressable>
-        <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700", flex: 1 }}>
+        <Text style={{ color: "#1A1A1A", fontSize: 18, fontWeight: "700", flex: 1 }}>
           Settings
         </Text>
       </View>
@@ -148,30 +148,30 @@ export default function SettingsScreen() {
             flexDirection: "row", alignItems: "center", gap: 14,
             paddingHorizontal: 16, paddingVertical: 18,
             marginHorizontal: 16, marginBottom: 4,
-            backgroundColor: "#111", borderRadius: 16,
+            backgroundColor: "#F5F5F5", borderRadius: 16,
           }}
         >
           <View
             style={{
               width: 52, height: 52, borderRadius: 26, overflow: "hidden",
-              backgroundColor: "#EEEDFE", alignItems: "center", justifyContent: "center",
+              backgroundColor: "#E5BCEC", alignItems: "center", justifyContent: "center",
             }}
           >
             {avatarUrl ? (
               <Image source={{ uri: avatarUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
             ) : (
-              <Text style={{ color: "#1C1714", fontSize: 18, fontWeight: "700" }}>{initials}</Text>
+              <Text style={{ color: "#3A0A57", fontSize: 18, fontWeight: "700" }}>{initials}</Text>
             )}
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>{displayName}</Text>
-            {email ? <Text style={{ color: "#666", fontSize: 13, marginTop: 2 }}>{email}</Text> : null}
+            <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "700" }}>{displayName}</Text>
+            {email ? <Text style={{ color: "#888", fontSize: 13, marginTop: 2 }}>{email}</Text> : null}
           </View>
         </View>
 
         {/* ── Intelligence ── */}
         <SectionHeader title="Intelligence" />
-        <View style={{ backgroundColor: "#0A0A0A", marginHorizontal: 0 }}>
+        <View style={{ backgroundColor: "#FFFFFF", marginHorizontal: 0 }}>
           <SettingsRow
             icon="flash-outline"
             label="My Rules"
@@ -181,7 +181,7 @@ export default function SettingsScreen() {
 
         {/* ── Library ── */}
         <SectionHeader title="Library" />
-        <View style={{ backgroundColor: "#0A0A0A" }}>
+        <View style={{ backgroundColor: "#FFFFFF" }}>
           <SettingsRow
             icon="trash-outline"
             label="Archived Saves"
@@ -197,7 +197,7 @@ export default function SettingsScreen() {
 
         {/* ── Wrapped ── */}
         <SectionHeader title="Your Dibs" />
-        <View style={{ backgroundColor: "#0A0A0A" }}>
+        <View style={{ backgroundColor: "#FFFFFF" }}>
           <SettingsRow
             icon="gift-outline"
             label="Your Wrappeds"
@@ -207,7 +207,7 @@ export default function SettingsScreen() {
 
         {/* ── Boards ── */}
         <SectionHeader title="Boards" />
-        <View style={{ backgroundColor: "#0A0A0A" }}>
+        <View style={{ backgroundColor: "#FFFFFF" }}>
           <SettingsRow
             icon="enter-outline"
             label="Join a Board"
@@ -217,7 +217,7 @@ export default function SettingsScreen() {
 
         {/* ── Account ── */}
         <SectionHeader title="Account" />
-        <View style={{ backgroundColor: "#0A0A0A" }}>
+        <View style={{ backgroundColor: "#FFFFFF" }}>
           <SettingsRow
             icon="log-out-outline"
             label="Sign out"

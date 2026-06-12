@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   card: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     overflow: "hidden",
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     height: 80,
   },
   thumbnailFallback: {
-    backgroundColor: "#2A2A2A",
+    backgroundColor: "#F5F5F5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   locationName: {
-    color: "#fff",
+    color: "#1A1A1A",
     fontSize: 15,
     fontWeight: "500",
   },
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   timeAgo: {
-    color: "#666",
+    color: "#888",
     fontSize: 10,
     marginTop: 2,
     marginBottom: 14,
@@ -153,13 +153,13 @@ const styles = StyleSheet.create({
   },
   btn: {
     flex: 1,
-    backgroundColor: "#FF6B35",
+    backgroundColor: "#9013BB",
     paddingVertical: 11,
     borderRadius: 12,
     alignItems: "center",
   },
   btnDisabled: {
-    backgroundColor: "#2A2A2A",
+    backgroundColor: "#F0F0F0",
   },
   btnText: {
     color: "#fff",
@@ -167,15 +167,15 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   btnTextDisabled: {
-    color: "#666",
+    color: "#888",
   },
   btnOutline: {
     backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: "#E5E5E5",
   },
   btnOutlineText: {
-    color: "#aaa",
+    color: "#888",
     fontSize: 13,
     fontWeight: "500",
   },

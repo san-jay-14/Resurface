@@ -1,3 +1,4 @@
+import * as Notifications from "expo-notifications";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -7,6 +8,7 @@ import { Button } from "@/components/Button";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import { Screen } from "@/components/Screen";
 import type { SaveCategory } from "@/lib/database.types";
+import { ensureAndroidChannel } from "@/lib/notifications";
 import {
   createManualSave,
   createPendingSave,
@@ -33,6 +35,21 @@ export default function ShareScreen() {
 
   const didProcess = useRef(false);
 
+  async function notifySaved() {
+    try {
+      await ensureAndroidChannel();
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Saved to Dibs",
+          body: "I'll categorise it in the background.",
+        },
+        trigger: null,
+      });
+    } catch {
+      // Non-critical — ignore
+    }
+  }
+
   // Safety net: if no share intent arrives within 3 s, bail back to app.
   useEffect(() => {
     const t = setTimeout(() => {
@@ -57,8 +74,6 @@ export default function ShareScreen() {
     const platform = detectPlatform(url);
 
     if (platform === "instagram") {
-      // Fire-and-forget: create the save immediately (instant UX), then kick off
-      // scrape-instagram in the background — it updates the DB directly when done.
       setMode("auto");
       setSaveState("saving");
       void (async () => {
@@ -68,12 +83,12 @@ export default function ShareScreen() {
             url,
             sourcePlatform: "instagram",
           });
-          // Don't await — scrape-instagram handles its own DB updates asynchronously.
           void supabase.functions.invoke("scrape-instagram", {
             body: { save_id: save.id, url },
           });
-          setSaveState("success");
-          setTimeout(() => { resetShareIntent(); router.replace("/(app)"); }, 1400);
+          void notifySaved();
+          resetShareIntent();
+          router.replace("/(app)");
         } catch {
           setSaveState("error");
           setErrorMsg("Couldn't save this link. Try again.");
@@ -83,17 +98,14 @@ export default function ShareScreen() {
     }
 
     if (isAutoPlatform(platform)) {
-      // Non-Instagram auto platforms: save immediately, enrich in background.
       setMode("auto");
       setSaveState("saving");
       createPendingSave({ userId: session.user.id, url, sourcePlatform: platform })
         .then((save) => {
           void triggerEnrich(save.id);
-          setSaveState("success");
-          setTimeout(() => {
-            resetShareIntent();
-            router.replace("/(app)");
-          }, 1400);
+          void notifySaved();
+          resetShareIntent();
+          router.replace("/(app)");
         })
         .catch(() => {
           setSaveState("error");
@@ -140,17 +152,8 @@ export default function ShareScreen() {
       <Screen className="items-center justify-center gap-5">
         {saveState === "saving" || saveState === "idle" ? (
           <>
-            <ActivityIndicator color="#FF6B4A" size="large" />
+            <ActivityIndicator color="#9013BB" size="large" />
             <Text className="text-base font-medium text-ink">{loadingText}</Text>
-          </>
-        ) : saveState === "success" ? (
-          <>
-            <Text className="text-5xl">✓</Text>
-            <Text className="text-lg font-bold text-ink">Saved!</Text>
-            <Text className="text-center text-sm leading-5 text-muted">
-              I'll categorise it in the background and resurface it at the right
-              moment.
-            </Text>
           </>
         ) : (
           <>
