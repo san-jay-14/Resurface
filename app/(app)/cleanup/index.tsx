@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { CATEGORY_EMOJI, CATEGORY_LABEL } from "@/components/SaveCard";
+import { CategoryIcon, CATEGORY_EMOJI, CATEGORY_LABEL } from "@/components/SaveCard";
 import type { Save } from "@/lib/database.types";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
@@ -293,7 +293,7 @@ export default function CleanupDeckScreen() {
                   alignItems: "center", justifyContent: "center",
                 }}
               >
-                <Text style={{ fontSize: 56 }}>{CATEGORY_EMOJI[currentSave.category] ?? "🗂️"}</Text>
+                <CategoryIcon category={currentSave.category} size={56} />
               </View>
             )}
 
@@ -317,7 +317,7 @@ export default function CleanupDeckScreen() {
                   alignSelf: "flex-start", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
                 }}
               >
-                <Text style={{ fontSize: 13 }}>{CATEGORY_EMOJI[currentSave.category] ?? "🗂️"}</Text>
+                <CategoryIcon category={currentSave.category} size={16} />
                 <Text style={{ color: "#888", fontSize: 12 }}>{CATEGORY_LABEL[currentSave.category] ?? "Unsorted"}</Text>
               </View>
             </View>

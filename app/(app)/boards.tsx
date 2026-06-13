@@ -13,7 +13,7 @@ import {
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { CATEGORY_COLORS, CATEGORY_EMOJI, CATEGORY_LABEL } from "@/components/SaveCard";
+import { CategoryIcon, CATEGORY_COLORS, CATEGORY_LABEL } from "@/components/SaveCard";
 import type { Collection, SaveCategory } from "@/lib/database.types";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
@@ -183,7 +183,6 @@ export default function BoardsScreen() {
                   <Text className="text-xs text-muted mb-2">Auto categories</Text>
                   {categories.map((row) => {
                     const colors = CATEGORY_COLORS[row.category];
-                    const emoji  = CATEGORY_EMOJI[row.category];
                     const label  = CATEGORY_LABEL[row.category];
                     return (
                       <Pressable
@@ -196,7 +195,7 @@ export default function BoardsScreen() {
                             className="w-9 h-9 rounded-xl items-center justify-center"
                             style={{ backgroundColor: colors.bg }}
                           >
-                            <Text style={{ fontSize: 18 }}>{emoji}</Text>
+                            <CategoryIcon category={row.category} size={18} />
                           </View>
                           <Text className="text-sm font-medium text-ink">{label}</Text>
                         </View>

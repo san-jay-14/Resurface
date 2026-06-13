@@ -14,7 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { ArchivedSave } from "@/lib/database.types";
-import { CATEGORY_EMOJI, CATEGORY_LABEL } from "@/components/SaveCard";
+import { CategoryIcon, CATEGORY_EMOJI, CATEGORY_LABEL } from "@/components/SaveCard";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -151,7 +151,7 @@ export default function ArchivedSavesScreen() {
                     <Image source={{ uri: save.thumbnail_url }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
                   ) : (
                     <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                      <Text style={{ fontSize: 22 }}>{emoji}</Text>
+                      <CategoryIcon category={save.category} size={22} />
                     </View>
                   )}
                 </View>

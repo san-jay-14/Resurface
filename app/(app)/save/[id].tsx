@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   ACTED_ON_VERB,
+  CategoryIcon,
   CATEGORY_COLORS,
   CATEGORY_EMOJI,
   CATEGORY_LABEL,
@@ -356,7 +357,7 @@ export default function SaveDetail() {
                 alignItems: "center", justifyContent: "center",
               }}
             >
-              <Text style={{ fontSize: 72 }}>{emoji}</Text>
+              <CategoryIcon category={save.category} size={72} />
             </View>
           )}
 

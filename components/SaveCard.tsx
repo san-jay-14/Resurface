@@ -59,7 +59,7 @@ export function BoardDetailCard({ save, onPress, onFavorite }: SaveCardProps) {
             alignItems: "center", justifyContent: "center",
           }}
         >
-          <Text style={{ fontSize: 32 }}>{emoji}</Text>
+          <CategoryIcon category={save.category} size={32} />
         </View>
       )}
       {/* Star / favourite */}
@@ -121,7 +121,7 @@ export function PinCard({ save, onPress }: PinCardProps) {
             justifyContent: "center",
           }}
         >
-          <Text style={{ fontSize: 34 }}>{emoji}</Text>
+          <CategoryIcon category={save.category} size={34} />
           {isPending && (
             <ActivityIndicator color={colors.text} size="small" style={{ marginTop: 6 }} />
           )}
@@ -167,6 +167,21 @@ export const CATEGORY_EMOJI: Record<SaveCategory, string> = {
   inspo:      "✨",
   unsorted:   "🗂️",
 };
+
+export const CATEGORY_ICON: Partial<Record<SaveCategory, number>> = {
+  places:     require("@/assets/icons/place.png"),
+  fashion:    require("@/assets/icons/fashion.png"),
+  recipes:    require("@/assets/icons/recipe.png"),
+  shopping:   require("@/assets/icons/shopping.png"),
+  watch_learn:require("@/assets/icons/watch.png"),
+  inspo:      require("@/assets/icons/inspo.png"),
+};
+
+export function CategoryIcon({ category, size = 24 }: { category: SaveCategory; size?: number }) {
+  const source = CATEGORY_ICON[category];
+  if (!source) return <Text style={{ fontSize: size * 0.8 }}>{CATEGORY_EMOJI[category] ?? "🗂️"}</Text>;
+  return <Image source={source} style={{ width: size, height: size }} resizeMode="contain" />;
+}
 
 export const CATEGORY_LABEL: Record<SaveCategory, string> = {
   places:     "Places",

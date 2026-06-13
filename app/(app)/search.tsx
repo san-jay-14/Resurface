@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { CATEGORY_COLORS, CATEGORY_EMOJI, CATEGORY_LABEL, getSaveTitle } from "@/components/SaveCard";
+import { CategoryIcon, CATEGORY_COLORS, CATEGORY_LABEL, getSaveTitle } from "@/components/SaveCard";
 import type { Save } from "@/lib/database.types";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
@@ -107,7 +107,6 @@ function RecentRow({
 // ---------------------------------------------------------------------------
 function ResultRow({ save, onPress }: { save: Save; onPress: () => void }) {
   const colors = CATEGORY_COLORS[save.category] ?? CATEGORY_COLORS.unsorted;
-  const emoji  = CATEGORY_EMOJI[save.category]  ?? "🗂️";
   const label  = CATEGORY_LABEL[save.category]  ?? "Unsorted";
   const title  = getSaveTitle(save);
 
@@ -130,7 +129,7 @@ function ResultRow({ save, onPress }: { save: Save; onPress: () => void }) {
         {save.thumbnail_url ? (
           <Image source={{ uri: save.thumbnail_url }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
         ) : (
-          <Text style={{ fontSize: 24 }}>{emoji}</Text>
+          <CategoryIcon category={save.category} size={24} />
         )}
       </View>
       <View style={{ flex: 1 }}>

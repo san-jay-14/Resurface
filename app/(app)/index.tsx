@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { CATEGORY_EMOJI, PinCard } from "@/components/SaveCard";
+import { CategoryIcon, PinCard } from "@/components/SaveCard";
 import type { Save, SaveCategory } from "@/lib/database.types";
 import {
   dismissLocationPrompt,
@@ -228,7 +228,7 @@ export default function Library() {
               backgroundColor: "#F5F5F5",
               alignItems: "center", justifyContent: "center",
             }}>
-              <Text style={{ fontSize: 26 }}>{CATEGORY_EMOJI[cat.value]}</Text>
+              <CategoryIcon category={cat.value} size={26} />
             </View>
             <Text style={{ fontSize: 11, color: "#555", textAlign: "center", fontWeight: "500" }} numberOfLines={1}>
               {cat.label}

@@ -23,7 +23,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   BoardDetailCard,
-  CATEGORY_EMOJI,
+  CategoryIcon,
   CATEGORY_LABEL,
   getSaveTitle,
 } from "@/components/SaveCard";
@@ -172,7 +172,7 @@ function SaveRow({ save, onPress }: { save: Save; onPress: () => void }) {
         {save.thumbnail_url
           ? <Image source={{ uri: save.thumbnail_url }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
           : <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 22 }}>{CATEGORY_EMOJI[save.category] ?? "🗂️"}</Text>
+              <CategoryIcon category={save.category} size={22} />
             </View>
         }
       </View>
@@ -338,7 +338,6 @@ export default function CategoryBoard() {
   }, [saves, activeSubCat, searchQuery, activeFilter]);
 
   const label = CATEGORY_LABEL[category as SaveCategory] ?? String(category);
-  const emoji = CATEGORY_EMOJI[category as SaveCategory] ?? "🗂️";
 
   const FILTER_PILLS: { value: FilterType; label: string }[] = [
     { value: "all",       label: "All" },
@@ -382,7 +381,7 @@ export default function CategoryBoard() {
               position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
               alignItems: "center", justifyContent: "center",
             }}>
-              <Text style={{ fontSize: 48, opacity: 0.25 }}>{emoji}</Text>
+              <CategoryIcon category={category as SaveCategory} size={48} />
             </View>
           </View>
         )}
@@ -432,9 +431,12 @@ export default function CategoryBoard() {
           paddingHorizontal: 16, paddingBottom: 12,
         }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 22, fontWeight: "800", color: "#1A1A1A", letterSpacing: -0.5 }}>
-              {emoji} {label}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <CategoryIcon category={category as SaveCategory} size={24} />
+              <Text style={{ fontSize: 22, fontWeight: "800", color: "#1A1A1A", letterSpacing: -0.5 }}>
+                {label}
+              </Text>
+            </View>
             <Text style={{ fontSize: 12, color: "#888", marginTop: 2 }}>
               {saves.length} {saves.length === 1 ? "save" : "saves"}
             </Text>
@@ -603,7 +605,7 @@ export default function CategoryBoard() {
             </View>
           ) : displayedSaves.length === 0 ? (
             <View style={{ paddingVertical: 40, alignItems: "center", paddingHorizontal: 40 }}>
-              <Text style={{ fontSize: 36 }}>{emoji}</Text>
+              <CategoryIcon category={category as SaveCategory} size={36} />
               <Text style={{ color: "#1A1A1A", fontSize: 15, fontWeight: "600", textAlign: "center", marginTop: 14 }}>
                 {searchQuery || activeSubCat || activeFilter !== "all"
                   ? "No saves match these filters"
@@ -688,7 +690,7 @@ export default function CategoryBoard() {
                       {save.thumbnail_url
                         ? <Image source={{ uri: save.thumbnail_url }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
                         : <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                            <Text style={{ fontSize: 30 }}>{emoji}</Text>
+                            <CategoryIcon category={category as SaveCategory} size={30} />
                           </View>
                       }
                     </View>
