@@ -166,25 +166,32 @@ async function classifyWithClaude(url: string, meta: OGMeta): Promise<ClassifyRe
     tagCount: meta.tags?.length ?? 0,
   });
 
-  const prompt = `You are classifying saved content for a personal curation app.
+  const prompt = `You are classifying saved content for a personal curation app called Dibs.
 
 URL: ${url}
 Title: ${meta.title ?? "unknown"}
 Description: ${meta.description ?? "none"}${meta.tags?.length ? `\nTags: ${meta.tags.join(", ")}` : ""}
 
 Classify into exactly ONE of these categories:
-- places: cafés, restaurants, bars, travel destinations — anything the user visits in person
-- recipes: food to cook at home (NOT restaurants or cafés)
-- fashion: clothing, outfits, styling, accessories
-- shopping: products to buy online
-- watch_learn: tutorials, how-tos, video content to consume later
-- inspo: mood boards, aesthetic, general inspiration without a clear action
+
+- places: cafés, restaurants, bars, hotels, spas, parks, tourist attractions, travel destinations — places visited for food, drink, or experiences. NOT retail stores.
+- recipes: food/drink to cook or make at home. NOT restaurants.
+- fashion: clothing, outfits, OOTD, styling, accessories, beauty, makeup — AND physical fashion retail (clothing stores, boutiques, shoe stores, accessory shops, concept stores, multi-brand stores). If a specific store/boutique name and city is mentioned, extract it as a location_hint.
+- shopping: non-fashion products to buy online (gadgets, home goods, tech, books).
+- watch_learn: tutorials, how-tos, educational video content to consume later.
+- inspo: mood boards, aesthetic content, motivational quotes — no clear action.
+
+KEY DISTINCTION — clothing store vs café:
+• A post about visiting a boutique / clothing store / fashion brand store → "fashion"
+• A post about visiting a café / restaurant / bar → "places"
+
+If location_hints are present (store name + city for fashion, or venue + city for places), include them. Otherwise return an empty array.
 
 Return only valid JSON (no markdown code fences):
 {
   "category": "<one of the above>",
   "confidence": <0.0-1.0>,
-  "location_hints": ["<specific place name or address if mentioned, empty array otherwise>"],
+  "location_hints": ["<store/venue name + city if applicable, else empty>"],
   "keywords": ["<3-6 descriptive keywords>"],
   "description": "<one sentence describing what this is>"
 }`;
@@ -378,8 +385,9 @@ Deno.serve(async (req: Request) => {
   // 2. Classify
   const classification = await classifyWithClaude(url, meta);
 
-  // 3. Geocode first location hint
-  const geoResult = classification.location_hints[0]
+  // 3. Geocode first location hint (places + fashion stores both get mapped)
+  const shouldGeocode = classification.category === "places" || classification.category === "fashion";
+  const geoResult = shouldGeocode && classification.location_hints[0]
     ? await geocodeHint(classification.location_hints[0])
     : null;
   if (!geoResult && classification.location_hints[0]) {

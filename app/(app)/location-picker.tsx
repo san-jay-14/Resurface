@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import * as Location from "expo-location";
-import { useRouter } from "expo-router";
+import * as Notifications from "expo-notifications";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -73,12 +74,61 @@ const POPULAR_CITIES = CITIES.filter((c) => c.popular);
 const OTHER_CITIES = CITIES.filter((c) => !c.popular).sort((a, b) => a.name.localeCompare(b.name));
 
 export default function LocationPickerScreen() {
-  const { session, refreshProfile } = useAuth();
+  const { session, profile, refreshProfile } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+  // mode=home  → updates home_city (used from Settings)
+  // mode=current (default) → updates current_city (used from home screen)
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const isHomeMode = mode === "home";
+
   const [query, setQuery] = useState("");
   const [detecting, setDetecting] = useState(false);
+
+  // Fire an immediate local notification when the user manually sets their
+  // current city, so they don't have to wait for the nightly cron run.
+  async function notifyPlacesInCity(cityName: string) {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== "granted" || !session) return;
+
+    const { data: locationRows } = await supabase
+      .from("save_locations")
+      .select("save_id, place_name")
+      .ilike("city", `%${cityName}%`);
+
+    if (!locationRows?.length) return;
+
+    const saveIds = locationRows.map((r) => r.save_id as string);
+
+    const { data: saves } = await supabase
+      .from("saves")
+      .select("id, title, ai_description, caption")
+      .eq("user_id", session.user.id)
+      .in("category", ["places", "fashion"])
+      .eq("acted_on", false)
+      .eq("archived", false)
+      .in("id", saveIds)
+      .limit(5);
+
+    if (!saves?.length) return;
+
+    const firstName = (profile?.name ?? "").split(" ")[0] || "";
+    const top = saves[0];
+    const label = top.title ?? top.ai_description ?? top.caption ?? "a spot";
+
+    const title = firstName
+      ? `${firstName}, you're in ${cityName}!`
+      : `You're in ${cityName}!`;
+    const body = saves.length === 1
+      ? `You saved "${label}" here — want to check it out?`
+      : `You've got ${saves.length} saves in ${cityName}, including "${label}". Go explore?`;
+
+    await Notifications.scheduleNotificationAsync({
+      content: { title, body, data: { save_id: top.id, trigger_type: "city_select" }, sound: "default" },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 2 },
+    });
+  }
 
   const filteredCities = useMemo(() => {
     if (!query.trim()) return null;
@@ -88,11 +138,21 @@ export default function LocationPickerScreen() {
 
   async function selectCity(city: City) {
     if (!session) return;
-    await supabase.from("users").update({
-      home_city: city.name,
-      home_city_lat: city.lat,
-      home_city_lng: city.lng,
-    }).eq("id", session.user.id);
+    if (isHomeMode) {
+      await supabase.from("users").update({
+        home_city: city.name,
+        home_city_lat: city.lat,
+        home_city_lng: city.lng,
+      }).eq("id", session.user.id);
+    } else {
+      await supabase.from("users").update({
+        current_city: city.name,
+        current_city_lat: city.lat,
+        current_city_lng: city.lng,
+        current_city_updated_at: new Date().toISOString(),
+      }).eq("id", session.user.id);
+      void notifyPlacesInCity(city.name); // immediate notification, fire-and-forget
+    }
     await refreshProfile();
     router.back();
   }
@@ -110,11 +170,21 @@ export default function LocationPickerScreen() {
       const cityName = rev[0]?.city ?? rev[0]?.subregion ?? rev[0]?.region ?? "Unknown";
 
       if (!session) return;
-      await supabase.from("users").update({
-        home_city: cityName,
-        home_city_lat: loc.coords.latitude,
-        home_city_lng: loc.coords.longitude,
-      }).eq("id", session.user.id);
+      if (isHomeMode) {
+        await supabase.from("users").update({
+          home_city: cityName,
+          home_city_lat: loc.coords.latitude,
+          home_city_lng: loc.coords.longitude,
+        }).eq("id", session.user.id);
+      } else {
+        await supabase.from("users").update({
+          current_city: cityName,
+          current_city_lat: loc.coords.latitude,
+          current_city_lng: loc.coords.longitude,
+          current_city_updated_at: new Date().toISOString(),
+        }).eq("id", session.user.id);
+        void notifyPlacesInCity(cityName);
+      }
       await refreshProfile();
       router.back();
     } catch {
@@ -138,7 +208,7 @@ export default function LocationPickerScreen() {
           <Ionicons name="chevron-back" size={26} color="#1A1A1A" />
         </Pressable>
         <Text style={{ fontSize: 17, fontWeight: "700", color: "#1A1A1A", flex: 1 }}>
-          Select city
+          {isHomeMode ? "Change home city" : "Where are you?"}
         </Text>
       </View>
 

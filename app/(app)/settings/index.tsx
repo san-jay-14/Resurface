@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import {
   Alert,
+  Dimensions,
   Image,
   Pressable,
   ScrollView,
@@ -13,78 +14,121 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/providers/AuthProvider";
 
-interface RowProps {
-  icon: string;
-  label: string;
-  onPress: () => void;
-  value?: string;
-  danger?: boolean;
-}
+const SCREEN_W = Dimensions.get("window").width;
 
-function SettingsRow({ icon, label, onPress, value, danger }: RowProps) {
+// ─── Quick tile (matches Swiggy's 4-column grid exactly) ─────────────────────
+const TILE_W = (SCREEN_W - 32 - 18) / 4; // 32 = outer padding×2, 18 = 3 gaps×6
+
+function QuickTile({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress}>
       {({ pressed }) => (
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            paddingHorizontal: 16,
-            paddingVertical: 14,
-            minHeight: 52,
-            backgroundColor: pressed ? "#F5F5F5" : "transparent",
-          }}
-        >
-          <View
-            style={{
-              width: 34, height: 34, borderRadius: 10,
-              backgroundColor: danger ? "rgba(255,80,80,0.1)" : "#F0E8F7",
-              alignItems: "center", justifyContent: "center",
-            }}
-          >
-            <Ionicons name={icon as never} size={17} color={danger ? "#FF5050" : "#9013BB"} />
-          </View>
-          <Text
-            numberOfLines={1}
-            style={{
-              flex: 1,
-              fontSize: 15,
-              color: danger ? "#FF5050" : "#1A1A1A",
-              marginLeft: 14,
-            }}
-          >
+        <View style={{
+          width: TILE_W,
+          height: TILE_W + 4,           // slightly taller than wide, like reference
+          backgroundColor: pressed ? "#FAF6FD" : "#FFFFFF",
+          borderRadius: 18,             // prominent rounded corners matching reference
+          borderWidth: 1,
+          borderColor: "#EBEBEB",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          shadowColor: "#000",
+          shadowOpacity: 0.07,
+          shadowOffset: { width: 0, height: 2 },
+          shadowRadius: 6,
+          elevation: 2,
+        }}>
+          <Ionicons name={icon as never} size={26} color="#555555" />
+          <Text style={{
+            fontSize: 11,
+            color: "#333333",
+            fontWeight: "400",
+            textAlign: "center",
+            lineHeight: 15,
+          }}>
             {label}
           </Text>
-          {value ? (
-            <Text style={{ fontSize: 13, color: "#888", marginRight: 6 }}>{value}</Text>
-          ) : null}
-          {!danger ? (
-            <Ionicons name="chevron-forward" size={15} color="#C0C0C0" />
-          ) : null}
         </View>
       )}
     </Pressable>
   );
 }
 
-function SectionHeader({ title }: { title: string }) {
+// ─── Menu row (horizontal layout, matches Swiggy style) ──────────────────────
+function MenuRow({
+  icon, label, onPress, danger,
+}: { icon: string; label: string; onPress: () => void; danger?: boolean }) {
   return (
-    <Text
-      style={{
-        color: "#555", fontSize: 11, fontWeight: "700",
-        letterSpacing: 0.8, textTransform: "uppercase",
-        paddingHorizontal: 16, paddingTop: 28, paddingBottom: 8,
-      }}
-    >
+    <Pressable onPress={onPress}>
+      {({ pressed }) => (
+        <View style={{
+          flexDirection: "row",
+          alignItems: "center",
+          paddingHorizontal: 16,
+          paddingVertical: 15,
+          backgroundColor: pressed ? "#FAFAFA" : "#FFFFFF",
+        }}>
+          <View style={{ width: 28, alignItems: "center" }}>
+            <Ionicons name={icon as never} size={22} color={danger ? "#E53935" : "#555555"} />
+          </View>
+          <Text style={{
+            flex: 1,
+            marginLeft: 14,
+            fontSize: 15,
+            color: danger ? "#E53935" : "#1A1A1A",
+            fontWeight: "400",
+          }}>
+            {label}
+          </Text>
+          {!danger && (
+            <Ionicons name="chevron-forward" size={16} color="#CCCCCC" />
+          )}
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+function RowDivider() {
+  return <View style={{ height: 1, backgroundColor: "#F2F2F2", marginLeft: 58 }} />;
+}
+
+function MenuCard({ children }: { children: React.ReactNode }) {
+  return (
+    <View style={{
+      marginHorizontal: 16,
+      borderRadius: 16,
+      backgroundColor: "#FFFFFF",
+      overflow: "hidden",
+      shadowColor: "#000",
+      shadowOpacity: 0.05,
+      shadowOffset: { width: 0, height: 1 },
+      shadowRadius: 4,
+      elevation: 1,
+    }}>
+      {children}
+    </View>
+  );
+}
+
+function SectionLabel({ title }: { title: string }) {
+  return (
+    <Text style={{
+      fontSize: 12,
+      fontWeight: "600",
+      color: "#999999",
+      letterSpacing: 0.6,
+      paddingHorizontal: 20,
+      paddingTop: 24,
+      paddingBottom: 10,
+    }}>
       {title}
     </Text>
   );
 }
 
-function Divider() {
-  return <View style={{ height: 1, backgroundColor: "#E5E5E5", marginLeft: 64 }} />;
-}
-
+// ─── Screen ──────────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
   const { profile, session, signOut } = useAuth();
   const router = useRouter();
@@ -115,26 +159,90 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
-      <StatusBar style="dark" />
+    <View style={{ flex: 1, backgroundColor: "#F2F2F7" }}>
+      <StatusBar style="light" />
 
-      {/* ── Top bar ── */}
-      <View
-        style={{
-          paddingTop: insets.top + 10,
-          paddingHorizontal: 16,
-          paddingBottom: 14,
+      {/* ── Hero header (Swiggy-style: name at bottom, watermark behind) ── */}
+      <View style={{
+        backgroundColor: "#9013BB",
+        paddingTop: insets.top,
+        height: insets.top + 220,
+        overflow: "hidden",
+        borderBottomLeftRadius: 28,
+        borderBottomRightRadius: 28,
+      }}>
+        {/* Large watermark — top right */}
+        <Text style={{
+          position: "absolute",
+          right: -30,
+          top: insets.top - 20,
+          fontSize: 200,
+          fontWeight: "900",
+          color: "rgba(255,255,255,0.09)",
+          letterSpacing: -6,
+          includeFontPadding: false,
+        }}>
+          dibs.
+        </Text>
+
+        {/* Back arrow row */}
+        <View style={{
           flexDirection: "row",
           alignItems: "center",
-          gap: 12,
-        }}
-      >
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={26} color="#1A1A1A" />
-        </Pressable>
-        <Text style={{ color: "#1A1A1A", fontSize: 18, fontWeight: "700", flex: 1 }}>
-          Settings
-        </Text>
+          paddingHorizontal: 16,
+          paddingTop: 12,
+        }}>
+          <Pressable onPress={() => router.back()} hitSlop={14}>
+            <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
+          </Pressable>
+        </View>
+
+        {/* Name + email — pinned to bottom of header */}
+        <View style={{
+          position: "absolute",
+          bottom: 24,
+          left: 20,
+          right: 20,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 14,
+        }}>
+          {/* Avatar */}
+          <View style={{
+            width: 60, height: 60, borderRadius: 30,
+            backgroundColor: "rgba(255,255,255,0.18)",
+            alignItems: "center", justifyContent: "center",
+            borderWidth: 2, borderColor: "rgba(255,255,255,0.3)",
+            overflow: "hidden",
+          }}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+            ) : (
+              <Text style={{ color: "#FFFFFF", fontSize: 22, fontWeight: "700" }}>{initials}</Text>
+            )}
+          </View>
+
+          {/* Text */}
+          <View style={{ flex: 1 }}>
+            <Text style={{
+              color: "#FFFFFF",
+              fontSize: 26,
+              fontWeight: "800",
+              letterSpacing: -0.3,
+            }}>
+              {displayName}
+            </Text>
+            {email ? (
+              <Text style={{
+                color: "rgba(255,255,255,0.65)",
+                fontSize: 13,
+                marginTop: 3,
+              }}>
+                {email}
+              </Text>
+            ) : null}
+          </View>
+        </View>
       </View>
 
       <ScrollView
@@ -142,89 +250,84 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
       >
-        {/* ── Profile card ── */}
-        <View
-          style={{
-            flexDirection: "row", alignItems: "center", gap: 14,
-            paddingHorizontal: 16, paddingVertical: 18,
-            marginHorizontal: 16, marginBottom: 4,
-            backgroundColor: "#F5F5F5", borderRadius: 16,
-          }}
-        >
-          <View
-            style={{
-              width: 52, height: 52, borderRadius: 26, overflow: "hidden",
-              backgroundColor: "#E5BCEC", alignItems: "center", justifyContent: "center",
-            }}
-          >
-            {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
-            ) : (
-              <Text style={{ color: "#3A0A57", fontSize: 18, fontWeight: "700" }}>{initials}</Text>
-            )}
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "700" }}>{displayName}</Text>
-            {email ? <Text style={{ color: "#888", fontSize: 13, marginTop: 2 }}>{email}</Text> : null}
-          </View>
-        </View>
-
-        {/* ── Intelligence ── */}
-        <SectionHeader title="Intelligence" />
-        <View style={{ backgroundColor: "#FFFFFF", marginHorizontal: 0 }}>
-          <SettingsRow
+        {/* ── Quick action tiles (Swiggy 4-column grid) ── */}
+        <View style={{
+          flexDirection: "row",
+          gap: 6,
+          paddingHorizontal: 16,
+          paddingTop: 20,
+          paddingBottom: 4,
+        }}>
+          <QuickTile
+            icon="location-outline"
+            label={"Home\nCity"}
+            onPress={() => router.push("/(app)/location-picker?mode=home" as never)}
+          />
+          <QuickTile
             icon="flash-outline"
-            label="My Rules"
+            label={"My\nRules"}
             onPress={() => router.push("/(app)/settings/rules" as never)}
           />
-        </View>
-
-        {/* ── Library ── */}
-        <SectionHeader title="Library" />
-        <View style={{ backgroundColor: "#FFFFFF" }}>
-          <SettingsRow
-            icon="trash-outline"
-            label="Archived Saves"
-            onPress={() => router.push("/(app)/settings/archived" as never)}
-          />
-          <Divider />
-          <SettingsRow
+          <QuickTile
             icon="sparkles-outline"
-            label="Clean Up Library"
+            label={"Clean\nUp"}
             onPress={() => router.push("/(app)/cleanup" as never)}
           />
-        </View>
-
-        {/* ── Wrapped ── */}
-        <SectionHeader title="Your Dibs" />
-        <View style={{ backgroundColor: "#FFFFFF" }}>
-          <SettingsRow
+          <QuickTile
             icon="gift-outline"
-            label="Your Wrappeds"
+            label={"Wrapped"}
             onPress={() => router.push("/(app)/wrapped/history" as never)}
           />
         </View>
 
-        {/* ── Boards ── */}
-        <SectionHeader title="Boards" />
-        <View style={{ backgroundColor: "#FFFFFF" }}>
-          <SettingsRow
+        {/* ── Library ── */}
+        <SectionLabel title="LIBRARY" />
+        <MenuCard>
+          <MenuRow
+            icon="archive-outline"
+            label="Archived Saves"
+            onPress={() => router.push("/(app)/settings/archived" as never)}
+          />
+          <RowDivider />
+          <MenuRow
+            icon="sparkles-outline"
+            label="Clean Up Library"
+            onPress={() => router.push("/(app)/cleanup" as never)}
+          />
+          <RowDivider />
+          <MenuRow
             icon="enter-outline"
             label="Join a Board"
             onPress={() => router.push("/(app)/boards/invite" as never)}
           />
-        </View>
+        </MenuCard>
 
         {/* ── Account ── */}
-        <SectionHeader title="Account" />
-        <View style={{ backgroundColor: "#FFFFFF" }}>
-          <SettingsRow
+        <SectionLabel title="ACCOUNT" />
+        <MenuCard>
+          <MenuRow
+            icon="person-outline"
+            label="Edit Profile"
+            onPress={() => router.push("/(app)/profile" as never)}
+          />
+          <RowDivider />
+          <MenuRow
+            icon="notifications-outline"
+            label="Notification Preferences"
+            onPress={() => {}}
+          />
+        </MenuCard>
+
+        {/* ── Sign out ── */}
+        <View style={{ height: 16 }} />
+        <MenuCard>
+          <MenuRow
             icon="log-out-outline"
             label="Sign out"
             onPress={handleSignOut}
             danger
           />
-        </View>
+        </MenuCard>
       </ScrollView>
     </View>
   );

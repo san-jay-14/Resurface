@@ -286,10 +286,12 @@ export default function CategoryBoard() {
     setSubCategories((data as UserSubCategory[]) ?? []);
   }, [category, session]);
 
+  const MAPPED_CATEGORIES: SaveCategory[] = ["places", "fashion"];
+
   const fetchMapData = useCallback(async () => {
-    if (!session || category !== "places") return;
+    if (!session || !MAPPED_CATEGORIES.includes(category as SaveCategory)) return;
     setMapLoading(true);
-    const { mapped, unmappedCount: uc } = await fetchPlacesMapSaves(session.user.id);
+    const { mapped, unmappedCount: uc } = await fetchPlacesMapSaves(session.user.id, category as SaveCategory);
     setMapSaves(mapped);
     setUnmappedCount(uc);
     setMapLoading(false);
@@ -310,7 +312,7 @@ export default function CategoryBoard() {
   useEffect(() => {
     void fetchSaves();
     void fetchSubCategories();
-    if (category === "places") void fetchMapData();
+    if (category === "places" || category === "fashion") void fetchMapData();
   }, [fetchSaves, fetchSubCategories, fetchMapData]);
 
   useEffect(() => {
@@ -351,7 +353,7 @@ export default function CategoryBoard() {
 
       {/* ── Map layer (full screen, sits behind the sheet) ── */}
       <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}>
-        {category === "places" ? (
+        {(category === "places" || category === "fashion") ? (
           <MapErrorBoundary>
             <PlacesMap
               saves={mapSaves}
@@ -404,24 +406,6 @@ export default function CategoryBoard() {
           <Ionicons name="chevron-back" size={22} color="#1A1A1A" />
         </Pressable>
       </View>
-
-      {/* ── Map toggle button (top right) ── */}
-      {category === "places" && (
-        <View style={{ position: "absolute", top: insets.top + 8, right: 16, zIndex: 20 }}>
-          <Pressable
-            hitSlop={12}
-            style={{
-              width: 38, height: 38, borderRadius: 19,
-              backgroundColor: "rgba(255,255,255,0.9)",
-              alignItems: "center", justifyContent: "center",
-              shadowColor: "#000", shadowOpacity: 0.1, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4,
-              elevation: 4,
-            }}
-          >
-            <Ionicons name="map-outline" size={20} color="#1A1A1A" />
-          </Pressable>
-        </View>
-      )}
 
       {/* ── Swipeable bottom sheet ── */}
       <Animated.View

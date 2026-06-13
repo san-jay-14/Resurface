@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { CATEGORY_EMOJI, CATEGORY_LABEL, PinCard } from "@/components/SaveCard";
+import { CATEGORY_EMOJI, PinCard } from "@/components/SaveCard";
 import type { Save, SaveCategory } from "@/lib/database.types";
 import {
   dismissLocationPrompt,
@@ -89,6 +89,9 @@ export default function Library() {
   const [refreshing, setRefreshing] = useState(false);
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  // Unique suffix per mount prevents "cannot add callbacks after subscribe()" when
+  // navigating back to this screen before the previous channel is fully removed.
+  const channelId = useRef(`saves:lib:${Date.now()}`).current;
 
   useEffect(() => {
     if (session) void registerDeviceToken(session.user.id);
@@ -125,8 +128,15 @@ export default function Library() {
 
   useEffect(() => {
     if (!session) return;
+
+    // Remove stale channel before creating a new one
+    if (channelRef.current) {
+      void supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
     const channel = supabase
-      .channel(`saves:lib:${session.user.id}`)
+      .channel(channelId)
       .on("postgres_changes", {
         event: "*", schema: "public", table: "saves",
         filter: `user_id=eq.${session.user.id}`,
@@ -140,15 +150,19 @@ export default function Library() {
         }
       })
       .subscribe();
+
     channelRef.current = channel;
-    return () => { void supabase.removeChannel(channel); };
+    return () => {
+      void supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
   }, [session]);
 
   const placesCount = saves.filter((s) => s.category === "places").length;
   const navigateToCard = (id: string) =>
     router.push({ pathname: "/(app)/save/[id]", params: { id } } as never);
 
-  const cityLabel = profile?.home_city ?? "Select city";
+  const cityLabel = profile?.current_city ?? profile?.home_city ?? "Select city";
 
   return (
     <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
@@ -181,7 +195,7 @@ export default function Library() {
 
         {/* Row 2: city picker */}
         <Pressable
-          onPress={() => router.push("/(app)/location-picker" as never)}
+          onPress={() => router.push("/(app)/location-picker?mode=current" as never)}
           style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}
           hitSlop={6}
         >
@@ -200,35 +214,27 @@ export default function Library() {
         contentContainerStyle={{ paddingHorizontal: 20, gap: 18, paddingBottom: 16 }}
         style={{ flexGrow: 0 }}
       >
-        {CATEGORY_SHORTCUTS.map((cat) => {
-          const count = saves.filter((s) => s.category === cat.value).length;
-          return (
-            <Pressable
-              key={cat.value}
-              onPress={() => router.push({
-                pathname: "/(app)/board/category",
-                params: { category: cat.value },
-              } as never)}
-              style={{ alignItems: "center", gap: 7, width: 60 }}
-            >
-              <View style={{
-                width: 56, height: 56, borderRadius: 18,
-                backgroundColor: "#F5F5F5",
-                alignItems: "center", justifyContent: "center",
-              }}>
-                <Text style={{ fontSize: 26 }}>{CATEGORY_EMOJI[cat.value]}</Text>
-              </View>
-              <Text style={{ fontSize: 11, color: "#555", textAlign: "center", fontWeight: "500" }} numberOfLines={1}>
-                {cat.label}
-              </Text>
-              {count > 0 && (
-                <Text style={{ fontSize: 10, color: "#9013BB", fontWeight: "700", marginTop: -4 }}>
-                  {count}
-                </Text>
-              )}
-            </Pressable>
-          );
-        })}
+        {CATEGORY_SHORTCUTS.map((cat) => (
+          <Pressable
+            key={cat.value}
+            onPress={() => router.push({
+              pathname: "/(app)/board/category",
+              params: { category: cat.value },
+            } as never)}
+            style={{ alignItems: "center", gap: 7, width: 60 }}
+          >
+            <View style={{
+              width: 56, height: 56, borderRadius: 18,
+              backgroundColor: "#F5F5F5",
+              alignItems: "center", justifyContent: "center",
+            }}>
+              <Text style={{ fontSize: 26 }}>{CATEGORY_EMOJI[cat.value]}</Text>
+            </View>
+            <Text style={{ fontSize: 11, color: "#555", textAlign: "center", fontWeight: "500" }} numberOfLines={1}>
+              {cat.label}
+            </Text>
+          </Pressable>
+        ))}
       </ScrollView>
 
       {/* Divider */}

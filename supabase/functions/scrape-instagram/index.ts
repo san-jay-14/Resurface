@@ -259,17 +259,19 @@ async function classifyWithClaude(
 ): Promise<{ category: ScrapeCategory; confidence: number; location_hint: string | null }> {
   const system = `You are a content classification engine for Dibs, an app that helps people act on saved social media content. Classify the given Instagram reel into exactly one of these six categories based on caption and hashtags:
 
-- places: cafes, restaurants, travel destinations, hidden spots, things to do in a city
-- recipes: food recipes, cooking tutorials, ingredient lists, kitchen tips
-- fashion: outfits, clothing, styling, OOTD, accessories, beauty
-- shopping: products to buy, gadgets, home items, pricing language, "link in bio"
-- watch_learn: tutorials, educational content, career advice, skill building, documentaries
-- inspo: mood boards, aesthetic content, motivational, quotes, vibes with no clear action
+- places: cafés, restaurants, bars, hotels, spas, parks, tourist attractions — places visited for food, drink, or experiences. NOT retail stores.
+- recipes: food/drink recipes to cook at home. NOT restaurants or cafés.
+- fashion: outfits, clothing, styling, OOTD, accessories, beauty, makeup — AND physical fashion retail (clothing stores, boutiques, shoe stores, accessory shops, concept stores). Clothing store visits → fashion, not places.
+- shopping: non-fashion products to buy (gadgets, home goods, tech, "link in bio" for products).
+- watch_learn: tutorials, educational content, career advice, skill building.
+- inspo: mood boards, aesthetic content, motivational quotes, vibes with no clear action.
 
-If category is "places", also extract the specific venue or place name mentioned in the caption (e.g. "Café de Flore, Paris" or "Haji Ali Dargah, Mumbai"). If no specific place is named, use null.
+KEY RULE: A post about visiting a boutique / clothing store / fashion brand store → "fashion". A post about a café / restaurant → "places".
+
+For "places" AND "fashion": extract the specific venue or store name + city if mentioned (e.g. "Zara Flagship, Mumbai" or "Café de Flore, Paris"). If none is mentioned, use null.
 
 Respond ONLY with a JSON object. No preamble, no explanation.
-Format: {"category": "<one of the six>", "confidence": <0.0 to 1.0>, "location_hint": "<venue/place name + city if places, else null>"}`;
+Format: {"category": "<one of the six>", "confidence": <0.0 to 1.0>, "location_hint": "<store/venue name + city if places or fashion, else null>"}`;
 
   const userMsg = [
     `Caption: ${caption || "No caption available"}`,
@@ -380,8 +382,8 @@ Deno.serve(async (req: Request) => {
   );
   log("classified", { category, confidence, location_hint });
 
-  // 3. Geocode — prefer Instagram's own location tag; fall back to Claude's extraction
-  const locationName = scrape.location_name || (category === "places" ? location_hint : null);
+  // 3. Geocode — places + fashion stores both get mapped
+  const locationName = scrape.location_name || ((category === "places" || category === "fashion") ? location_hint : null);
   const geoResult = locationName ? await geocodeLocation(locationName) : null;
 
   // 4. Update the save row

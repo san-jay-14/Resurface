@@ -1,11 +1,10 @@
 // Requires @rnmapbox/maps and a native rebuild (npx expo prebuild --clean).
 // MapView will show a blank screen in Expo Go — use a development build.
 
-import React, { memo, useRef, useState } from "react";
+import React, { memo, useRef } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -43,11 +42,6 @@ function getCameraBounds(saves: PlaceSave[]) {
     },
     padding: { top: 60, bottom: 160, left: 40, right: 40 },
   };
-}
-
-function getCitiesFromSaves(saves: PlaceSave[]): string[] {
-  const cities = saves.map((s) => s.location_city).filter(Boolean) as string[];
-  return ["All", ...Array.from(new Set(cities)).sort()];
 }
 
 // ─── PinBubble ───────────────────────────────────────────────────────────────
@@ -121,24 +115,6 @@ export const PlacesMap = memo(function PlacesMap({
   onPinPress,
 }: Props) {
   const cameraRef = useRef<Camera>(null);
-  const [selectedCity, setSelectedCity] = useState<string>("All");
-  const cities = getCitiesFromSaves(saves);
-
-  function flyToCity(city: string) {
-    setSelectedCity(city);
-    const citySaves = city === "All" ? saves : saves.filter((s) => s.location_city === city);
-    if (citySaves.length === 0) return;
-
-    const bounds = getCameraBounds(citySaves);
-    if (!("bounds" in bounds)) return;
-
-    cameraRef.current?.fitBounds(
-      bounds.bounds.ne,
-      bounds.bounds.sw,
-      [bounds.padding.top, bounds.padding.right, bounds.padding.bottom, bounds.padding.left],
-      600,
-    );
-  }
 
   const isEmpty = !loading && saves.length === 0;
   const emptyMessage =
@@ -151,7 +127,7 @@ export const PlacesMap = memo(function PlacesMap({
   return (
     <View style={styles.container}>
       <MapView
-        styleURL="mapbox://styles/mapbox/dark-v11"
+        styleURL="mapbox://styles/sanjay14/cmq8aymq5002k01qw5peha5jq"
         style={styles.map}
         attributionEnabled={false}
         logoEnabled={false}
@@ -197,36 +173,6 @@ export const PlacesMap = memo(function PlacesMap({
         </View>
       )}
 
-      {/* City filter pills — absolute overlay */}
-      <View style={styles.cityFilterContainer} pointerEvents="box-none">
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.cityFilterContent}
-          pointerEvents="auto"
-        >
-          {cities.map((city) => (
-            <Pressable
-              key={city}
-              onPress={() => flyToCity(city)}
-              style={[
-                styles.cityPill,
-                selectedCity === city && styles.cityPillActive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.cityPillText,
-                  selectedCity === city && styles.cityPillTextActive,
-                ]}
-              >
-                {city}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-
       {/* Loading overlay */}
       {loading && (
         <View style={styles.loadingOverlay}>
@@ -249,31 +195,6 @@ export const PlacesMap = memo(function PlacesMap({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
-
-  cityFilterContainer: {
-    position: "absolute",
-    top: 12,
-    left: 0,
-    right: 0,
-  },
-  cityFilterContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  cityPill: {
-    backgroundColor: "rgba(30,30,30,0.85)",
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-  },
-  cityPillActive: {
-    backgroundColor: "#9013BB",
-    borderColor: "transparent",
-  },
-  cityPillText: { color: "#aaa", fontSize: 13, fontWeight: "500" },
-  cityPillTextActive: { color: "#fff" },
 
   loadingOverlay: {
     position: "absolute",

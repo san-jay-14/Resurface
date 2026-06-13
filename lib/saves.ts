@@ -173,8 +173,8 @@ type RawMapRow = {
   };
 };
 
-/** Fetches up to 200 Places saves that have a mapped location, for the map view. */
-export async function fetchPlacesMapSaves(userId: string): Promise<{
+/** Fetches up to 200 saves with location data for the map view. Works for any category. */
+export async function fetchPlacesMapSaves(userId: string, category: SaveCategory = "places"): Promise<{
   mapped: PlaceSave[];
   unmappedCount: number;
 }> {
@@ -185,7 +185,7 @@ export async function fetchPlacesMapSaves(userId: string): Promise<{
         "id, caption, note, thumbnail_url, acted_on, created_at, source_url, save_locations!inner(place_name, lat, lng, city, google_place_id)",
       )
       .eq("user_id", userId)
-      .eq("category", "places")
+      .eq("category", category)
       .eq("archived", false)
       .order("created_at", { ascending: false })
       .limit(200),
@@ -193,7 +193,7 @@ export async function fetchPlacesMapSaves(userId: string): Promise<{
       .from("saves")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
-      .eq("category", "places")
+      .eq("category", category)
       .eq("archived", false),
   ]);
 
