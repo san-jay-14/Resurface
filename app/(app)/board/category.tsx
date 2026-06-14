@@ -27,11 +27,17 @@ import {
   CATEGORY_LABEL,
   getSaveTitle,
 } from "@/components/SaveCard";
+import { InspoCollageHeader } from "@/components/category/InspoCollageHeader";
+import { RecipePromptHeader } from "@/components/category/RecipePromptHeader";
+import { RecentSavesSlideshow } from "@/components/category/RecentSavesSlideshow";
+import { WishlistStrip } from "@/components/category/WishlistStrip";
 import { PlacesMap } from "@/components/PlacesMap";
 import type { PlaceSave, Save, SaveCategory, UserSubCategory } from "@/lib/database.types";
 import { fetchPlacesMapSaves } from "@/lib/saves";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
+
+const CATEGORY_HEADERS = true; // set false to hide all four headers
 
 const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get("window");
 
@@ -363,26 +369,52 @@ export default function CategoryBoard() {
             />
           </MapErrorBoundary>
         ) : (
-          // Non-places: neutral gradient placeholder map feel
-          <View style={{ flex: 1, backgroundColor: "#E8EEF4" }}>
-            <View style={{ flex: 1, opacity: 0.6 }}>
-              {/* Grid lines to simulate map */}
-              {Array.from({ length: 8 }).map((_, i) => (
-                <View key={i} style={{ height: 1, backgroundColor: "#C8D4DF", marginTop: SCREEN_H / 8 }} />
-              ))}
-            </View>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <View key={i} style={{
-                position: "absolute", top: 0, bottom: 0,
-                left: (SCREEN_W / 6) * i, width: 1, backgroundColor: "#C8D4DF", opacity: 0.6,
-              }} />
-            ))}
-            <View style={{
-              position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-              alignItems: "center", justifyContent: "center",
-            }}>
-              <CategoryIcon category={category as SaveCategory} size={48} />
-            </View>
+          <View style={{ flex: 1, backgroundColor:
+            category === "recipes" ? "#FFFFFF" :
+            category === "inspo"   ? "#09060F" :
+            category === "watch_learn" ? "#06060A" :
+            category === "shopping"    ? "#F7F5F1" :
+            "#F2F0F8"
+          }}>
+            {CATEGORY_HEADERS ? (
+              <>
+                {/* Full-bleed backgrounds */}
+                {category === "inspo" && (
+                  <InspoCollageHeader saves={saves} />
+                )}
+                {category === "watch_learn" && (
+                  <RecentSavesSlideshow
+                    category="watch_learn"
+                    saves={saves.slice(0, 10)}
+                    onPressSave={(id) => router.push({ pathname: "/(app)/save/[id]", params: { id } } as never)}
+                    emptyState={{ emoji: "🎬", headline: "Nothing queued up yet", subtext: "Share a YouTube video, documentary, or tutorial to build your watchlist" }}
+                    fullBleed
+                    insetTop={insets.top}
+                  />
+                )}
+
+              <View style={{ paddingTop: insets.top + 60 }}>
+                {category === "recipes" && (
+                  <RecipePromptHeader saveCount={saves.length} />
+                )}
+                {category === "shopping" && (
+                  <WishlistStrip
+                    saves={saves.slice(0, 8)}
+                    onPressSave={(id) => router.push({ pathname: "/(app)/save/[id]", params: { id } } as never)}
+                  />
+                )}
+                {(category !== "recipes" && category !== "inspo" && category !== "watch_learn" && category !== "shopping") && (
+                  <View style={{ alignItems: "center", justifyContent: "center", paddingTop: 32 }}>
+                    <CategoryIcon category={category as SaveCategory} size={48} />
+                  </View>
+                )}
+              </View>
+              </>
+            ) : (
+              <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                <CategoryIcon category={category as SaveCategory} size={48} />
+              </View>
+            )}
           </View>
         )}
       </View>
