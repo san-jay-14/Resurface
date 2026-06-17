@@ -100,16 +100,21 @@ export default function Library() {
   const fetchSaves = async (quiet = false) => {
     if (!session) return;
     if (!quiet) setLoading(true);
-    const { data, error } = await supabase
-      .from("saves")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .eq("archived", false)
-      .order("created_at", { ascending: false });
-    if (error) console.warn("Failed to fetch saves:", error.message);
-    else setSaves((data as Save[]) ?? []);
-    setLoading(false);
-    setRefreshing(false);
+    try {
+      const { data, error } = await supabase
+        .from("saves")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .eq("archived", false)
+        .order("created_at", { ascending: false });
+      if (error) console.warn("Failed to fetch saves:", error.message);
+      else setSaves((data as Save[]) ?? []);
+    } catch (err) {
+      console.warn("fetchSaves threw:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
   useEffect(() => { void fetchSaves(); }, [session]);

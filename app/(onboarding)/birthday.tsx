@@ -31,7 +31,12 @@ export default function BirthdayStep() {
 
   function onChange(event: DateTimePickerEvent, selected?: Date) {
     setShowPicker(Platform.OS === "ios");
-    if (event.type === "set" && selected) setDate(selected);
+    if (event.type === "set" && selected) {
+      setDate(selected);
+      if (Platform.OS !== "ios") {
+        void persistAndContinue(toISODate(selected));
+      }
+    }
   }
 
   async function persistAndContinue(birthday: string | null) {

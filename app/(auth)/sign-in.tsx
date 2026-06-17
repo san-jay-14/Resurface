@@ -1,4 +1,5 @@
 import * as AppleAuthentication from "expo-apple-authentication";
+import { AntDesign } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -237,7 +238,7 @@ function AuthPhase({
             <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>Signing in…</Text>
           ) : (
             <>
-              <Text style={{ fontSize: 18 }}>G</Text>
+              <AntDesign name="google" size={18} color="#fff" />
               <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
                 sign in with Google
               </Text>

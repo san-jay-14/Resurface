@@ -401,19 +401,6 @@ export default function SaveDetail() {
               />
             </Pressable>
 
-            {/* Note / comment */}
-            <Pressable
-              onPress={() => {
-                setNoteExpanded(true);
-                setTimeout(() => noteRef.current?.focus(), 60);
-              }}
-              hitSlop={8}
-              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-            >
-              <Ionicons name="chatbubble-outline" size={24} color="#1A1A1A" />
-              {save.note && <Text style={{ color: "#1A1A1A", fontSize: 13 }}>1</Text>}
-            </Pressable>
-
             {/* Share */}
             <Pressable onPress={save.source_url ? handleShare : undefined} hitSlop={8}>
               <Ionicons
