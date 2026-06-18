@@ -27,7 +27,7 @@ function Loading() {
  * Share intent takes priority once the user is authenticated + onboarded.
  */
 function RootNavigator() {
-  const { session, profile, initializing } = useAuth();
+  const { session, profile, initializing, refreshProfile } = useAuth();
   const { hasShareIntent } = useShareIntentContext();
   const segments = useSegments();
   const router = useRouter();
@@ -97,16 +97,20 @@ function RootNavigator() {
   const lastAppState = useRef<AppStateStatus>(AppState.currentState);
   useEffect(() => {
     if (!session) return;
+    const detectAndRefresh = () =>
+      void detectAndUpdateCity(session.user.id).then((city) => {
+        if (city) void refreshProfile();
+      });
     const sub = AppState.addEventListener("change", (next) => {
       if (lastAppState.current !== "active" && next === "active") {
-        void detectAndUpdateCity(session.user.id);
+        detectAndRefresh();
       }
       lastAppState.current = next;
     });
     // Also run once on mount (covers cold start)
-    void detectAndUpdateCity(session.user.id);
+    detectAndRefresh();
     return () => sub.remove();
-  }, [session]);
+  }, [session, refreshProfile]);
 
   // Notification tap handler — runs for background→foreground taps and cold starts.
   // `useLastNotificationResponse` re-fires on every new tap; the ref prevents

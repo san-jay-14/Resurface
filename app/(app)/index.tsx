@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -12,9 +13,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { CategoryIcon, PinCard } from "@/components/SaveCard";
+import { CategoryIcon, getSaveTitle, PinCard } from "@/components/SaveCard";
 import type { Save, SaveCategory } from "@/lib/database.types";
 import {
+  detectAndUpdateCity,
   dismissLocationPrompt,
   getLocationPermissionStatus,
   isLocationPromptDismissed,
@@ -32,6 +34,64 @@ const CATEGORY_SHORTCUTS: { value: SaveCategory; label: string }[] = [
   { value: "watch_learn", label: "Watch" },
   { value: "inspo",       label: "Inspo" },
 ];
+
+interface NearbySave extends Save {
+  distanceKm: number;
+  placeName: string | null;
+}
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Picks a punchy, city-flavored headline. Indexing by the city's char length
+// (rather than random) keeps it stable for a given city across re-renders.
+const NEAR_YOU_HEADLINES = (city: string) => [
+  `${city}'s so hot right now 🔥 go explore these`,
+  `${city} is calling — and these saves are answering`,
+  `you're literally in ${city}. time to go.`,
+  `${city} unlocked 🔓 go claim what you saved`,
+  `dibs called — ${city} has receipts waiting for you`,
+  `${city} vibes incoming — here's the lineup`,
+];
+
+function getNearYouHeadline(city: string | null): string {
+  if (!city) return "right around the corner — go claim these";
+  const templates = NEAR_YOU_HEADLINES(city);
+  return templates[city.length % templates.length];
+}
+
+function NearbyCard({ item, onPress }: { item: NearbySave; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={{ width: 134 }}>
+      <View style={{ borderRadius: 14, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.08)" }}>
+        {item.thumbnail_url ? (
+          <Image
+            source={{ uri: item.thumbnail_url }}
+            style={{ width: "100%", height: 100 }}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={{ width: "100%", height: 100, alignItems: "center", justifyContent: "center" }}>
+            <CategoryIcon category="places" size={30} />
+          </View>
+        )}
+      </View>
+      <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "600", color: "#fff", marginTop: 7 }}>
+        {item.placeName ?? getSaveTitle(item)}
+      </Text>
+      <Text style={{ fontSize: 11, color: "#E5BCEC", marginTop: 2, fontWeight: "600" }}>
+        {item.distanceKm < 1 ? "< 1 km away" : `${item.distanceKm.toFixed(1)} km away`}
+      </Text>
+    </Pressable>
+  );
+}
 
 function MasonryGrid({ saves, onPressCard }: { saves: Save[]; onPressCard: (id: string) => void }) {
   const left  = saves.filter((_, i) => i % 2 === 0);
@@ -80,7 +140,7 @@ function LocationBanner({ count, onEnable, onDismiss }: {
 }
 
 export default function Library() {
-  const { session, profile } = useAuth();
+  const { session, profile, refreshProfile } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -88,10 +148,30 @@ export default function Library() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  const [locationGranted, setLocationGranted] = useState(false);
+  const [nearby, setNearby] = useState<NearbySave[]>([]);
+
+  // Re-check permission whenever the screen regains focus (covers the user
+  // granting it from OS Settings and coming back, not just our own prompts).
+  useFocusEffect(
+    useCallback(() => {
+      void getLocationPermissionStatus().then((status) => setLocationGranted(status === "granted"));
+    }, []),
+  );
+
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   // Unique suffix per mount prevents "cannot add callbacks after subscribe()" when
   // navigating back to this screen before the previous channel is fully removed.
   const channelId = useRef(`saves:lib:${Date.now()}`).current;
+
+  async function enableLocation() {
+    const granted = await requestLocationPermission();
+    setLocationGranted(granted);
+    if (granted && session) {
+      await detectAndUpdateCity(session.user.id);
+      await refreshProfile();
+    }
+  }
 
   useEffect(() => {
     if (session) void registerDeviceToken(session.user.id);
@@ -130,6 +210,36 @@ export default function Library() {
       if (status !== "granted" && !dismissed) setShowLocationPrompt(true);
     })();
   }, [saves]);
+
+  // "Near you" — places saves within 30km of the device's last-detected position.
+  useEffect(() => {
+    const lat = profile?.current_city_lat;
+    const lng = profile?.current_city_lng;
+    const placeSaves = saves.filter((s) => s.category === "places");
+    if (!lat || !lng || placeSaves.length === 0) { setNearby([]); return; }
+
+    void (async () => {
+      const { data } = await supabase
+        .from("save_locations")
+        .select("save_id, lat, lng, place_name")
+        .in("save_id", placeSaves.map((s) => s.id))
+        .not("lat", "is", null)
+        .not("lng", "is", null);
+
+      const withDistance = (data ?? [])
+        .map((loc) => {
+          const save = placeSaves.find((s) => s.id === loc.save_id);
+          if (!save) return null;
+          const distanceKm = haversineKm(lat, lng, loc.lat as number, loc.lng as number);
+          return { ...save, distanceKm, placeName: loc.place_name as string | null };
+        })
+        .filter((x): x is NearbySave => x !== null && x.distanceKm <= 30)
+        .sort((a, b) => a.distanceKm - b.distanceKm)
+        .slice(0, 10);
+
+      setNearby(withDistance);
+    })();
+  }, [saves, profile?.current_city_lat, profile?.current_city_lng]);
 
   useEffect(() => {
     if (!session) return;
@@ -278,7 +388,7 @@ export default function Library() {
               <LocationBanner
                 count={placesCount}
                 onEnable={async () => {
-                  await requestLocationPermission();
+                  await enableLocation();
                   setShowLocationPrompt(false);
                   await dismissLocationPrompt();
                 }}
@@ -289,6 +399,58 @@ export default function Library() {
               />
             </View>
           )}
+
+          {nearby.length > 0 ? (
+            <View
+              style={{
+                marginHorizontal: 8, marginBottom: 22, borderRadius: 22,
+                backgroundColor: "#1B0529", padding: 16, paddingBottom: 18,
+                shadowColor: "#9013BB", shadowOpacity: 0.3,
+                shadowOffset: { width: 0, height: 6 }, shadowRadius: 16,
+                elevation: 6,
+              }}
+            >
+              <Text style={{ fontSize: 17, fontWeight: "800", color: "#fff", lineHeight: 22 }}>
+                {getNearYouHeadline(cityLabel === "Select city" ? null : cityLabel)}
+              </Text>
+              <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 4, marginBottom: 14 }}>
+                {nearby.length} saved {nearby.length === 1 ? "place" : "places"} close by, right now
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 12 }}
+              >
+                {nearby.map((item) => (
+                  <NearbyCard key={item.id} item={item} onPress={() => navigateToCard(item.id)} />
+                ))}
+              </ScrollView>
+            </View>
+          ) : !showLocationPrompt && placesCount > 0 && !locationGranted ? (
+            <View
+              style={{
+                marginHorizontal: 8, marginBottom: 20, borderRadius: 16,
+                backgroundColor: "#F0E8F7", borderWidth: 1, borderColor: "#E5BCEC",
+                padding: 14,
+              }}
+            >
+              <Text style={{ color: "#3A0A57", fontSize: 13, fontWeight: "700", marginBottom: 4 }}>
+                📍 Near you
+              </Text>
+              <Text style={{ color: "#888", fontSize: 12, lineHeight: 17, marginBottom: 10 }}>
+                Turn on location to see your saved places near where you are right now.
+              </Text>
+              <Pressable
+                onPress={() => void enableLocation()}
+                style={{
+                  backgroundColor: "#9013BB", borderRadius: 8,
+                  paddingHorizontal: 14, paddingVertical: 8, alignSelf: "flex-start",
+                }}
+              >
+                <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>Enable location</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           <View style={{ paddingHorizontal: 8, paddingBottom: 14, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
             <Text style={{ fontSize: 16, fontWeight: "700", color: "#1A1A1A" }}>Recently saved</Text>

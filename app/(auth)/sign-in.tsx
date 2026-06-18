@@ -1,5 +1,4 @@
 import * as AppleAuthentication from "expo-apple-authentication";
-import { AntDesign } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -40,21 +39,20 @@ function DibsBadge() {
 // ---------------------------------------------------------------------------
 // Intro phase — staggered text animations
 // ---------------------------------------------------------------------------
-function IntroPhase({ onGetStarted, onAlreadyHave }: {
+function IntroPhase({ onGetStarted }: {
   onGetStarted: () => void;
-  onAlreadyHave: () => void;
 }) {
   const insets = useSafeAreaInsets();
 
   const anims = useRef(
-    Array.from({ length: 6 }, () => ({
+    Array.from({ length: 5 }, () => ({
       opacity: new Animated.Value(0),
       y: new Animated.Value(28),
     })),
   ).current;
 
   useEffect(() => {
-    const delays = [120, 320, 520, 820, 1150, 1400];
+    const delays = [120, 320, 520, 820, 1150];
     const animations = anims.map((a, i) =>
       Animated.parallel([
         Animated.timing(a.opacity, {
@@ -132,16 +130,6 @@ function IntroPhase({ onGetStarted, onAlreadyHave }: {
               get started
             </Text>
             <Text style={{ color: "#fff", fontSize: 17, fontWeight: "800" }}>→</Text>
-          </Pressable>
-        )}
-        {line(5,
-          <Pressable onPress={onAlreadyHave} style={{ alignItems: "center", paddingVertical: 6 }}>
-            <Text style={{
-              color: "rgba(26,26,26,0.35)", fontSize: 11,
-              fontWeight: "700", letterSpacing: 1.5, textTransform: "uppercase",
-            }}>
-              I already have an account
-            </Text>
           </Pressable>
         )}
       </View>
@@ -238,7 +226,15 @@ function AuthPhase({
             <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>Signing in…</Text>
           ) : (
             <>
-              <AntDesign name="google" size={18} color="#fff" />
+              <View
+                style={{
+                  width: 22, height: 22, borderRadius: 11,
+                  backgroundColor: "#fff",
+                  alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <Text style={{ color: "#4285F4", fontSize: 13, fontWeight: "800" }}>G</Text>
+              </View>
               <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
                 sign in with Google
               </Text>
@@ -322,10 +318,7 @@ export default function SignIn() {
   if (phase === "intro") {
     return (
       <Animated.View style={{ flex: 1, opacity: introOpacity }}>
-        <IntroPhase
-          onGetStarted={switchToAuth}
-          onAlreadyHave={switchToAuth}
-        />
+        <IntroPhase onGetStarted={switchToAuth} />
       </Animated.View>
     );
   }
