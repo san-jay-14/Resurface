@@ -432,21 +432,27 @@ export default function ProfileScreen() {
           {/* Wrapped teaser */}
           {activeTab === "favourites" && allSaves.length >= 15 && (
             <Pressable
-              onPress={() => router.push("/(app)/wrapped/history" as never)}
+              onPress={() => Alert.alert("Coming soon", "We're working on it — stay tuned!")}
               style={{
                 marginHorizontal: 16, marginBottom: 16,
                 backgroundColor: "#F0E8F7",
                 borderRadius: 16, padding: 14,
                 flexDirection: "row", alignItems: "center", gap: 12,
                 borderWidth: 1, borderColor: "#E5BCEC",
+                opacity: 0.7,
               }}
             >
               <Text style={{ fontSize: 28 }}>🎁</Text>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: "#3A0A57", fontSize: 14, fontWeight: "700" }}>Your Dibs Wrapped is ready</Text>
-                <Text style={{ color: "#9013BB", fontSize: 12, marginTop: 2 }}>See your saves personality card</Text>
+                <Text style={{ color: "#3A0A57", fontSize: 14, fontWeight: "700" }}>Dibs Wrapped</Text>
+                <Text style={{ color: "#9013BB", fontSize: 12, marginTop: 2 }}>Your saves personality card — coming soon</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#9013BB" />
+              <View style={{
+                backgroundColor: "#9013BB", borderRadius: 6,
+                paddingHorizontal: 7, paddingVertical: 3,
+              }}>
+                <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>Soon</Text>
+              </View>
             </Pressable>
           )}
 

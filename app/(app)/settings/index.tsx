@@ -19,15 +19,21 @@ const SCREEN_W = Dimensions.get("window").width;
 // ─── Quick tile (matches Swiggy's 4-column grid exactly) ─────────────────────
 const TILE_W = (SCREEN_W - 32 - 18) / 4; // 32 = outer padding×2, 18 = 3 gaps×6
 
-function QuickTile({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
+function QuickTile({ icon, label, onPress, comingSoon }: {
+  icon: string; label: string; onPress: () => void; comingSoon?: boolean;
+}) {
+  const handlePress = comingSoon
+    ? () => Alert.alert("Coming soon", "We're working on it — stay tuned!")
+    : onPress;
+
   return (
-    <Pressable onPress={onPress}>
+    <Pressable onPress={handlePress}>
       {({ pressed }) => (
         <View style={{
           width: TILE_W,
-          height: TILE_W + 4,           // slightly taller than wide, like reference
+          height: TILE_W + 4,
           backgroundColor: pressed ? "#FAF6FD" : "#FFFFFF",
-          borderRadius: 18,             // prominent rounded corners matching reference
+          borderRadius: 18,
           borderWidth: 1,
           borderColor: "#EBEBEB",
           alignItems: "center",
@@ -38,17 +44,29 @@ function QuickTile({ icon, label, onPress }: { icon: string; label: string; onPr
           shadowOffset: { width: 0, height: 2 },
           shadowRadius: 6,
           elevation: 2,
+          opacity: comingSoon ? 0.65 : 1,
         }}>
-          <Ionicons name={icon as never} size={26} color="#555555" />
+          <Ionicons name={icon as never} size={26} color={comingSoon ? "#AAAAAA" : "#555555"} />
           <Text style={{
             fontSize: 11,
-            color: "#333333",
+            color: comingSoon ? "#AAAAAA" : "#333333",
             fontWeight: "400",
             textAlign: "center",
             lineHeight: 15,
           }}>
             {label}
           </Text>
+          {comingSoon && (
+            <View style={{
+              position: "absolute", top: 5, right: 5,
+              backgroundColor: "#9013BB", borderRadius: 5,
+              paddingHorizontal: 4, paddingVertical: 2,
+            }}>
+              <Text style={{ color: "#fff", fontSize: 7, fontWeight: "800", letterSpacing: 0.3 }}>
+                SOON
+              </Text>
+            </View>
+          )}
         </View>
       )}
     </Pressable>
@@ -57,10 +75,14 @@ function QuickTile({ icon, label, onPress }: { icon: string; label: string; onPr
 
 // ─── Menu row (horizontal layout, matches Swiggy style) ──────────────────────
 function MenuRow({
-  icon, label, onPress, danger,
-}: { icon: string; label: string; onPress: () => void; danger?: boolean }) {
+  icon, label, onPress, danger, comingSoon,
+}: { icon: string; label: string; onPress: () => void; danger?: boolean; comingSoon?: boolean }) {
+  const handlePress = comingSoon
+    ? () => Alert.alert("Coming soon", "We're working on it — stay tuned!")
+    : onPress;
+
   return (
-    <Pressable onPress={onPress}>
+    <Pressable onPress={handlePress}>
       {({ pressed }) => (
         <View style={{
           flexDirection: "row",
@@ -68,6 +90,7 @@ function MenuRow({
           paddingHorizontal: 16,
           paddingVertical: 15,
           backgroundColor: pressed ? "#FAFAFA" : "#FFFFFF",
+          opacity: comingSoon ? 0.65 : 1,
         }}>
           <View style={{ width: 28, alignItems: "center" }}>
             <Ionicons name={icon as never} size={22} color={danger ? "#E53935" : "#555555"} />
@@ -81,7 +104,14 @@ function MenuRow({
           }}>
             {label}
           </Text>
-          {!danger && (
+          {comingSoon ? (
+            <View style={{
+              backgroundColor: "#F0E8F7", borderRadius: 6,
+              paddingHorizontal: 7, paddingVertical: 3,
+            }}>
+              <Text style={{ color: "#9013BB", fontSize: 10, fontWeight: "700" }}>Soon</Text>
+            </View>
+          ) : !danger && (
             <Ionicons name="chevron-forward" size={16} color="#CCCCCC" />
           )}
         </View>
@@ -267,16 +297,19 @@ export default function SettingsScreen() {
             icon="flash-outline"
             label={"My\nRules"}
             onPress={() => router.push("/(app)/settings/rules" as never)}
+            comingSoon
           />
           <QuickTile
             icon="sparkles-outline"
             label={"Clean\nUp"}
             onPress={() => router.push("/(app)/cleanup" as never)}
+            comingSoon
           />
           <QuickTile
             icon="gift-outline"
             label={"Wrapped"}
             onPress={() => router.push("/(app)/wrapped/history" as never)}
+            comingSoon
           />
         </View>
 
@@ -293,6 +326,7 @@ export default function SettingsScreen() {
             icon="sparkles-outline"
             label="Clean Up Library"
             onPress={() => router.push("/(app)/cleanup" as never)}
+            comingSoon
           />
           <RowDivider />
           <MenuRow
