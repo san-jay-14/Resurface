@@ -50,27 +50,10 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Picks a punchy, city-flavored headline. Indexing by the city's char length
-// (rather than random) keeps it stable for a given city across re-renders.
-const NEAR_YOU_HEADLINES = (city: string) => [
-  `${city}'s so hot right now 🔥 go explore these`,
-  `${city} is calling — and these saves are answering`,
-  `you're literally in ${city}. time to go.`,
-  `${city} unlocked 🔓 go claim what you saved`,
-  `dibs called — ${city} has receipts waiting for you`,
-  `${city} vibes incoming — here's the lineup`,
-];
-
-function getNearYouHeadline(city: string | null): string {
-  if (!city) return "right around the corner — go claim these";
-  const templates = NEAR_YOU_HEADLINES(city);
-  return templates[city.length % templates.length];
-}
-
 function NearbyCard({ item, onPress }: { item: NearbySave; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={{ width: 134 }}>
-      <View style={{ borderRadius: 14, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.08)" }}>
+      <View style={{ borderRadius: 14, overflow: "hidden", backgroundColor: "#F5F5F5" }}>
         {item.thumbnail_url ? (
           <Image
             source={{ uri: item.thumbnail_url }}
@@ -83,10 +66,10 @@ function NearbyCard({ item, onPress }: { item: NearbySave; onPress: () => void }
           </View>
         )}
       </View>
-      <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "600", color: "#fff", marginTop: 7 }}>
+      <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "600", color: "#1A1A1A", marginTop: 7 }}>
         {item.placeName ?? getSaveTitle(item)}
       </Text>
-      <Text style={{ fontSize: 11, color: "#E5BCEC", marginTop: 2, fontWeight: "600" }}>
+      <Text style={{ fontSize: 11, color: "#9013BB", marginTop: 2, fontWeight: "600" }}>
         {item.distanceKm < 1 ? "< 1 km away" : `${item.distanceKm.toFixed(1)} km away`}
       </Text>
     </Pressable>
@@ -401,25 +384,14 @@ export default function Library() {
           )}
 
           {nearby.length > 0 ? (
-            <View
-              style={{
-                marginHorizontal: 8, marginBottom: 22, borderRadius: 22,
-                backgroundColor: "#1B0529", padding: 16, paddingBottom: 18,
-                shadowColor: "#9013BB", shadowOpacity: 0.3,
-                shadowOffset: { width: 0, height: 6 }, shadowRadius: 16,
-                elevation: 6,
-              }}
-            >
-              <Text style={{ fontSize: 17, fontWeight: "800", color: "#fff", lineHeight: 22 }}>
-                {getNearYouHeadline(cityLabel === "Select city" ? null : cityLabel)}
-              </Text>
-              <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 4, marginBottom: 14 }}>
-                {nearby.length} saved {nearby.length === 1 ? "place" : "places"} close by, right now
+            <View style={{ marginBottom: 22 }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#1A1A1A", paddingHorizontal: 8, marginBottom: 12 }}>
+                Near you
               </Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 12 }}
+                contentContainerStyle={{ paddingHorizontal: 8, gap: 12 }}
               >
                 {nearby.map((item) => (
                   <NearbyCard key={item.id} item={item} onPress={() => navigateToCard(item.id)} />

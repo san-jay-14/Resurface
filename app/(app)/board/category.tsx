@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import * as Location from "expo-location";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Component, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
@@ -31,13 +31,25 @@ import { InspoCollageHeader } from "@/components/category/InspoCollageHeader";
 import { RecipePromptHeader } from "@/components/category/RecipePromptHeader";
 import { RecentSavesSlideshow } from "@/components/category/RecentSavesSlideshow";
 import { WishlistStrip } from "@/components/category/WishlistStrip";
-import { PlacesMap } from "@/components/PlacesMap";
+import { PlacesMap, type PlacesMapHandle } from "@/components/PlacesMap";
 import type { PlaceSave, Save, SaveCategory, UserSubCategory } from "@/lib/database.types";
 import { fetchPlacesMapSaves } from "@/lib/saves";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
 const CATEGORY_HEADERS = true; // set false to hide all four headers
+
+const NEAR_YOU_RADIUS_KM = 30;
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get("window");
 
@@ -197,20 +209,21 @@ function SaveRow({ save, onPress }: { save: Save; onPress: () => void }) {
 // ---------------------------------------------------------------------------
 // Main category screen
 // ---------------------------------------------------------------------------
-type FilterType = "all" | "favorites" | "done" | "undone";
+type FilterType = "all" | "favorites" | "done" | "undone" | "near";
 
 export default function CategoryBoard() {
   const { category } = useLocalSearchParams<{ category: SaveCategory }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { session } = useAuth();
+  const { session, profile } = useAuth();
+  const placesMapRef = useRef<PlacesMapHandle>(null);
 
   // Data
   const [saves, setSaves] = useState<Save[]>([]);
   const [subCategories, setSubCategories] = useState<UserSubCategory[]>([]);
   const [mapSaves, setMapSaves] = useState<PlaceSave[]>([]);
   const [unmappedCount, setUnmappedCount] = useState(0);
-  const [nearYouSaves, setNearYouSaves] = useState<Save[]>([]);
+  const [nearSaveIds, setNearSaveIds] = useState<Set<string>>(new Set());
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -306,14 +319,16 @@ export default function CategoryBoard() {
   const fetchNearYou = useCallback(async () => {
     try {
       const { status } = await Location.getForegroundPermissionsAsync();
-      if (status !== "granted") return;
+      if (status !== "granted" || mapSaves.length === 0) { setNearSaveIds(new Set()); return; }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      // For simplicity: show the 5 most recently-saved items as "near you" (a real impl would filter by lat/lng radius)
-      setNearYouSaves(saves.slice(0, 5));
+      const ids = mapSaves
+        .filter((s) => haversineKm(loc.coords.latitude, loc.coords.longitude, s.lat, s.lng) <= NEAR_YOU_RADIUS_KM)
+        .map((s) => s.id);
+      setNearSaveIds(new Set(ids));
     } catch {
-      // Location unavailable — skip Near you section
+      setNearSaveIds(new Set());
     }
-  }, [saves]);
+  }, [mapSaves]);
 
   useEffect(() => {
     void fetchSaves();
@@ -322,8 +337,30 @@ export default function CategoryBoard() {
   }, [fetchSaves, fetchSubCategories, fetchMapData]);
 
   useEffect(() => {
-    if (saves.length > 0) void fetchNearYou();
-  }, [saves]);
+    if (mapSaves.length > 0) void fetchNearYou();
+  }, [mapSaves]);
+
+  const nearPlaces = useMemo(
+    () => mapSaves.filter((s) => nearSaveIds.has(s.id)),
+    [mapSaves, nearSaveIds],
+  );
+
+  const cityCenter = useMemo(() => {
+    const lat = profile?.current_city_lat ?? profile?.home_city_lat;
+    const lng = profile?.current_city_lng ?? profile?.home_city_lng;
+    return lat != null && lng != null ? { lat, lng } : null;
+  }, [profile?.current_city_lat, profile?.current_city_lng, profile?.home_city_lat, profile?.home_city_lng]);
+
+  // Re-center the map on the user's city every time this screen gains focus
+  // (covers cases where the screen stays mounted across navigation, not just
+  // the initial-mount camera position set inside PlacesMap).
+  useFocusEffect(
+    useCallback(() => {
+      if (!cityCenter) return;
+      if (category !== "places" && category !== "fashion") return;
+      placesMapRef.current?.centerOnCity(cityCenter.lat, cityCenter.lng);
+    }, [cityCenter, category]),
+  );
 
   // Filtered saves
   const displayedSaves = useMemo(() => {
@@ -340,13 +377,15 @@ export default function CategoryBoard() {
     if (activeFilter === "favorites") result = result.filter((s) => s.is_favorite);
     if (activeFilter === "done") result = result.filter((s) => s.acted_on);
     if (activeFilter === "undone") result = result.filter((s) => !s.acted_on);
+    if (activeFilter === "near") result = result.filter((s) => nearSaveIds.has(s.id));
     return result;
-  }, [saves, activeSubCat, searchQuery, activeFilter]);
+  }, [saves, activeSubCat, searchQuery, activeFilter, nearSaveIds]);
 
   const label = CATEGORY_LABEL[category as SaveCategory] ?? String(category);
 
   const FILTER_PILLS: { value: FilterType; label: string }[] = [
     { value: "all",       label: "All" },
+    ...(category === "places" ? [{ value: "near" as FilterType, label: "📍 Near you" }] : []),
     { value: "favorites", label: "★ Saved" },
     { value: "done",      label: "✓ Done" },
     { value: "undone",    label: "Pending" },
@@ -361,9 +400,12 @@ export default function CategoryBoard() {
         {(category === "places" || category === "fashion") ? (
           <MapErrorBoundary>
             <PlacesMap
+              ref={placesMapRef}
               saves={mapSaves}
               unmappedCount={unmappedCount}
               loading={mapLoading}
+              nearSaveIds={nearSaveIds}
+              cityCenter={cityCenter}
               onPinPress={() => {}}
               onAddLocationPress={() => {}}
             />
@@ -693,7 +735,7 @@ export default function CategoryBoard() {
           )}
 
           {/* Near you section */}
-          {nearYouSaves.length > 0 && (
+          {nearPlaces.length > 0 && (
             <View style={{ marginTop: 24 }}>
               <View style={{
                 paddingHorizontal: 16, paddingBottom: 12,
@@ -709,25 +751,26 @@ export default function CategoryBoard() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
               >
-                {nearYouSaves.map((save) => (
+                {nearPlaces.map((place) => (
                   <Pressable
-                    key={save.id}
-                    onPress={() => router.push({ pathname: "/(app)/save/[id]", params: { id: save.id } } as never)}
+                    key={place.id}
+                    onPress={() => router.push({ pathname: "/(app)/save/[id]", params: { id: place.id } } as never)}
                     style={{ width: 130 }}
                   >
                     <View style={{
                       width: 130, height: 100, borderRadius: 14,
                       overflow: "hidden", backgroundColor: "#F5F5F5", marginBottom: 6,
+                      borderWidth: 1.5, borderColor: "#3A0A57",
                     }}>
-                      {save.thumbnail_url
-                        ? <Image source={{ uri: save.thumbnail_url }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                      {place.thumbnail_url
+                        ? <Image source={{ uri: place.thumbnail_url }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
                         : <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
                             <CategoryIcon category={category as SaveCategory} size={30} />
                           </View>
                       }
                     </View>
                     <Text style={{ fontSize: 12, fontWeight: "500", color: "#1A1A1A" }} numberOfLines={2}>
-                      {getSaveTitle(save)}
+                      {place.location_name}
                     </Text>
                   </Pressable>
                 ))}

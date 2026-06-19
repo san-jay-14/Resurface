@@ -1,7 +1,7 @@
 // Requires @rnmapbox/maps and a native rebuild (npx expo prebuild --clean).
 // MapView will show a blank screen in Expo Go — use a development build.
 
-import React, { memo, useRef } from "react";
+import React, { forwardRef, memo, useImperativeHandle, useRef } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -28,25 +28,16 @@ const DEFAULT_CAMERA = {
   zoomLevel: 4.5,
 };
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+const CITY_ZOOM = 12;
 
-function getCameraBounds(saves: PlaceSave[]) {
-  if (saves.length === 0) return DEFAULT_CAMERA;
-
-  const lats = saves.map((s) => s.lat);
-  const lngs = saves.map((s) => s.lng);
-  return {
-    bounds: {
-      ne: [Math.max(...lngs), Math.max(...lats)] as [number, number],
-      sw: [Math.min(...lngs), Math.min(...lats)] as [number, number],
-    },
-    padding: { top: 60, bottom: 160, left: 40, right: 40 },
-  };
+export interface PlacesMapHandle {
+  /** Animates the camera to a city-level view centered on the given coordinate. */
+  centerOnCity: (lat: number, lng: number, zoomLevel?: number) => void;
 }
 
 // ─── PinBubble ───────────────────────────────────────────────────────────────
 
-const PinBubble = memo(function PinBubble({ save }: { save: PlaceSave }) {
+const PinBubble = memo(function PinBubble({ save, near }: { save: PlaceSave; near: boolean }) {
   const visited = save.acted_on;
   const label =
     save.location_name.length > 18
@@ -55,7 +46,13 @@ const PinBubble = memo(function PinBubble({ save }: { save: PlaceSave }) {
 
   return (
     <View style={pinStyles.wrapper}>
-      <View style={[pinStyles.bubble, visited && pinStyles.bubbleVisited]}>
+      <View
+        style={[
+          pinStyles.bubble,
+          near && !visited && pinStyles.bubbleNear,
+          visited && pinStyles.bubbleVisited,
+        ]}
+      >
         <Text
           style={[pinStyles.text, visited && pinStyles.textVisited]}
           numberOfLines={1}
@@ -63,7 +60,13 @@ const PinBubble = memo(function PinBubble({ save }: { save: PlaceSave }) {
           {label}
         </Text>
       </View>
-      <View style={[pinStyles.tail, visited && pinStyles.tailVisited]} />
+      <View
+        style={[
+          pinStyles.tail,
+          near && !visited && pinStyles.tailNear,
+          visited && pinStyles.tailVisited,
+        ]}
+      />
     </View>
   );
 });
@@ -77,6 +80,10 @@ const pinStyles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: "rgba(255,255,255,0.25)",
+  },
+  bubbleNear: {
+    backgroundColor: "#3A0A57",
+    borderColor: "rgba(255,255,255,0.35)",
   },
   bubbleVisited: {
     backgroundColor: "rgba(40,40,40,0.85)",
@@ -95,6 +102,7 @@ const pinStyles = StyleSheet.create({
     borderTopColor: "#9013BB",
     marginTop: -1,
   },
+  tailNear: { borderTopColor: "#3A0A57" },
   tailVisited: { borderTopColor: "rgba(40,40,40,0.85)" },
 });
 
@@ -104,17 +112,34 @@ type Props = {
   saves: PlaceSave[];
   unmappedCount: number;
   loading?: boolean;
+  /** ids of saves within resurfacing range of the user's current location —
+   *  rendered in dark purple to stand out from the rest. */
+  nearSaveIds?: Set<string>;
+  /** User's current/home city — the map always opens centered here. */
+  cityCenter?: { lat: number; lng: number } | null;
   onPinPress: (save: PlaceSave) => void;
   onAddLocationPress: (save: PlaceSave) => void;
 };
 
-export const PlacesMap = memo(function PlacesMap({
+export const PlacesMap = memo(forwardRef<PlacesMapHandle, Props>(function PlacesMap({
   saves,
   unmappedCount,
   loading,
+  nearSaveIds,
+  cityCenter,
   onPinPress,
-}: Props) {
+}, ref) {
   const cameraRef = useRef<Camera>(null);
+
+  useImperativeHandle(ref, () => ({
+    centerOnCity: (lat, lng, zoomLevel = CITY_ZOOM) => {
+      cameraRef.current?.setCamera({
+        centerCoordinate: [lng, lat],
+        zoomLevel,
+        animationDuration: 500,
+      });
+    },
+  }), []);
 
   const isEmpty = !loading && saves.length === 0;
   const emptyMessage =
@@ -122,7 +147,9 @@ export const PlacesMap = memo(function PlacesMap({
       ? { title: "No spots mapped yet", body: "Your next saves will appear here automatically when location data is available." }
       : { title: "No places saved yet", body: "Share an Instagram reel of a café, restaurant, or destination to Dibs — it'll show up here." };
 
-  const initialBounds = getCameraBounds(saves);
+  const initialCamera = cityCenter
+    ? { centerCoordinate: [cityCenter.lng, cityCenter.lat] as [number, number], zoomLevel: CITY_ZOOM }
+    : DEFAULT_CAMERA;
 
   return (
     <View style={styles.container}>
@@ -135,17 +162,8 @@ export const PlacesMap = memo(function PlacesMap({
       >
         <Camera
           ref={cameraRef}
-          {...("bounds" in initialBounds
-            ? {
-                bounds: {
-                  ...initialBounds.bounds,
-                  paddingTop: initialBounds.padding.top,
-                  paddingBottom: initialBounds.padding.bottom,
-                  paddingLeft: initialBounds.padding.left,
-                  paddingRight: initialBounds.padding.right,
-                },
-              }
-            : { centerCoordinate: DEFAULT_CAMERA.centerCoordinate, zoomLevel: DEFAULT_CAMERA.zoomLevel })}
+          centerCoordinate={initialCamera.centerCoordinate}
+          zoomLevel={initialCamera.zoomLevel}
           animationMode="none"
         />
 
@@ -156,7 +174,7 @@ export const PlacesMap = memo(function PlacesMap({
             anchor={{ x: 0.5, y: 1 }}
           >
             <Pressable onPress={() => onPinPress(save)}>
-              <PinBubble save={save} />
+              <PinBubble save={save} near={nearSaveIds?.has(save.id) ?? false} />
             </Pressable>
           </MarkerView>
         ))}
@@ -190,7 +208,7 @@ export const PlacesMap = memo(function PlacesMap({
       )}
     </View>
   );
-});
+}));
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
