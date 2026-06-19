@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -26,7 +26,7 @@ import {
   PinCard,
   getSaveTitle,
 } from "@/components/SaveCard";
-import type { Collection, Save, SaveLocation } from "@/lib/database.types";
+import type { Save, SaveLocation } from "@/lib/database.types";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -49,127 +49,56 @@ function Toast({ message }: { message: string | null }) {
 }
 
 // ---------------------------------------------------------------------------
-// Collections picker (unchanged logic, dark-themed)
+// More-options sheet — styled replacement for the old native Alert menu.
 // ---------------------------------------------------------------------------
-function CollectionsPicker({
-  visible, saveId, userId, onClose,
-}: { visible: boolean; saveId: string; userId: string; onClose: () => void }) {
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [membership, setMembership] = useState<Set<string>>(new Set());
-  const [newName, setNewName] = useState("");
-  const [creating, setCreating] = useState(false);
-
-  const load = async () => {
-    const [colRes, memRes] = await Promise.all([
-      supabase.from("collections").select("*").eq("user_id", userId).order("name"),
-      supabase.from("collection_saves").select("collection_id").eq("save_id", saveId),
-    ]);
-    if (colRes.data) setCollections(colRes.data as Collection[]);
-    if (memRes.data) setMembership(new Set(memRes.data.map((r) => r.collection_id)));
-  };
-
-  useEffect(() => { if (visible) void load(); }, [visible]);
-
-  const toggle = async (col: Collection) => {
-    const isMember = membership.has(col.id);
-    if (isMember) {
-      setMembership((prev) => { const s = new Set(prev); s.delete(col.id); return s; });
-      await supabase.from("collection_saves").delete().eq("collection_id", col.id).eq("save_id", saveId);
-    } else {
-      setMembership((prev) => new Set([...prev, col.id]));
-      await supabase.from("collection_saves").insert({ collection_id: col.id, save_id: saveId });
-    }
-  };
-
-  const create = async () => {
-    const name = newName.trim();
-    if (!name) return;
-    setCreating(true);
-    const { data, error } = await supabase
-      .from("collections").insert({ user_id: userId, name }).select().single();
-    setCreating(false);
-    if (error) {
-      Alert.alert("Error", error.message.includes("unique")
-        ? "A board with that name already exists." : error.message);
-      return;
-    }
-    setNewName("");
-    if (data) setCollections((prev) =>
-      [...prev, data as Collection].sort((a, b) => a.name.localeCompare(b.name)),
-    );
-  };
-
+function MoreOptionsSheet({
+  visible, onClose, onMoveToBoard, onDelete,
+}: { visible: boolean; onClose: () => void; onMoveToBoard: () => void; onDelete: () => void }) {
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }} onPress={onClose} />
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }} onPress={onClose} />
       <View
         style={{
           backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24,
-          paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, maxHeight: "60%",
+          paddingTop: 10, paddingBottom: 28,
         }}
       >
-        <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "700", marginBottom: 16 }}>
-          Add to board
-        </Text>
-        <ScrollView>
-          {collections.map((col) => {
-            const on = membership.has(col.id);
-            return (
-              <Pressable
-                key={col.id}
-                onPress={() => void toggle(col)}
-                style={{
-                  flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                  paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#E5E5E5",
-                }}
-              >
-                <Text style={{ color: "#1A1A1A", fontSize: 14 }}>{col.name}</Text>
-                <View
-                  style={{
-                    width: 22, height: 22, borderRadius: 6,
-                    borderWidth: 1.5,
-                    borderColor: on ? "#9013BB" : "#E5E5E5",
-                    backgroundColor: on ? "#9013BB" : "transparent",
-                    alignItems: "center", justifyContent: "center",
-                  }}
-                >
-                  {on && <Ionicons name="checkmark" size={13} color="#fff" />}
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-        <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
-          <TextInput
-            value={newName}
-            onChangeText={setNewName}
-            placeholder="New board name…"
-            placeholderTextColor="#555"
-            maxLength={50}
-            style={{
-              flex: 1, backgroundColor: "#F5F5F5", borderRadius: 14,
-              paddingHorizontal: 14, paddingVertical: 10, color: "#1A1A1A", fontSize: 14,
-            }}
-            returnKeyType="done"
-            onSubmitEditing={create}
-          />
-          <Pressable
-            onPress={create}
-            disabled={creating || !newName.trim()}
-            style={{
-              backgroundColor: newName.trim() ? "#9013BB" : "#F0F0F0",
-              borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10,
-              alignItems: "center", justifyContent: "center",
-            }}
-          >
-            {creating
-              ? <ActivityIndicator color="#fff" size="small" />
-              : <Text style={{ color: newName.trim() ? "#fff" : "#555", fontSize: 14, fontWeight: "600" }}>
-                  Create
-                </Text>
-            }
-          </Pressable>
-        </View>
+        <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: "#E5E5E5", alignSelf: "center", marginBottom: 6 }} />
+
+        <Pressable
+          onPress={onMoveToBoard}
+          style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 20, paddingVertical: 16 }}
+        >
+          <View style={{
+            width: 36, height: 36, borderRadius: 18,
+            backgroundColor: "#F0E8F7", alignItems: "center", justifyContent: "center",
+          }}>
+            <Ionicons name="albums-outline" size={18} color="#9013BB" />
+          </View>
+          <Text style={{ fontSize: 15, color: "#1A1A1A", fontWeight: "500" }}>Move to board</Text>
+        </Pressable>
+
+        <View style={{ height: 1, backgroundColor: "#F0F0F0", marginLeft: 70 }} />
+
+        <Pressable
+          onPress={onDelete}
+          style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 20, paddingVertical: 16 }}
+        >
+          <View style={{
+            width: 36, height: 36, borderRadius: 18,
+            backgroundColor: "#FDEAEA", alignItems: "center", justifyContent: "center",
+          }}>
+            <Ionicons name="trash-outline" size={18} color="#E03131" />
+          </View>
+          <Text style={{ fontSize: 15, color: "#E03131", fontWeight: "500" }}>Delete save</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={onClose}
+          style={{ alignItems: "center", paddingTop: 14, paddingHorizontal: 20 }}
+        >
+          <Text style={{ fontSize: 14, color: "#888", fontWeight: "600" }}>Cancel</Text>
+        </Pressable>
       </View>
     </Modal>
   );
@@ -189,7 +118,7 @@ export default function SaveDetail() {
   const [loading, setLoading] = useState(true);
   const [noteText, setNoteText] = useState("");
   const [noteExpanded, setNoteExpanded] = useState(false);
-  const [pickerVisible, setPickerVisible] = useState(false);
+  const [moreVisible, setMoreVisible] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [moreSaves, setMoreSaves] = useState<Save[]>([]);
   const noteRef = useRef<TextInput>(null);
@@ -216,6 +145,20 @@ export default function SaveDetail() {
     };
     void fetch();
   }, [id]);
+
+  // Re-fetch the save when this screen regains focus (e.g. returning from
+  // the Move to board screen) so category/board changes show up. Skips the
+  // first focus, which the mount effect above already handles.
+  const didMountRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!id) return;
+      if (!didMountRef.current) { didMountRef.current = true; return; }
+      void supabase.from("saves").select("*").eq("id", id).single().then(({ data }) => {
+        if (data) setSave(data as Save);
+      });
+    }, [id]),
+  );
 
   // Fetch more saves in same category
   useEffect(() => {
@@ -274,29 +217,19 @@ export default function SaveDetail() {
     catch { /* user cancelled */ }
   };
 
-  const handleMoreOptions = () => {
-    Alert.alert("Options", undefined, [
-      { text: "Add to board", onPress: () => setPickerVisible(true) },
+  const handleDelete = () => {
+    Alert.alert("Delete this save?", "It'll be archived and recoverable for 30 days.", [
+      { text: "Cancel", style: "cancel" },
       {
-        text: "Delete save",
-        style: "destructive",
-        onPress: () => {
-          Alert.alert("Delete this save?", "It'll be archived and recoverable for 30 days.", [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Delete", style: "destructive",
-              onPress: async () => {
-                await supabase
-                  .from("saves")
-                  .update({ archived: true, archived_at: new Date().toISOString() })
-                  .eq("id", id);
-                router.back();
-              },
-            },
-          ]);
+        text: "Delete", style: "destructive",
+        onPress: async () => {
+          await supabase
+            .from("saves")
+            .update({ archived: true, archived_at: new Date().toISOString() })
+            .eq("id", id);
+          router.back();
         },
       },
-      { text: "Cancel", style: "cancel" },
     ]);
   };
 
@@ -377,7 +310,7 @@ export default function SaveDetail() {
 
           {/* Boards button (bottom-right of image) */}
           <Pressable
-            onPress={() => setPickerVisible(true)}
+            onPress={() => router.push({ pathname: "/(app)/move-board", params: { id: save.id } } as never)}
             style={{
               position: "absolute", bottom: 14, right: 14,
               backgroundColor: "rgba(0,0,0,0.72)",
@@ -411,7 +344,7 @@ export default function SaveDetail() {
             </Pressable>
 
             {/* More (...) */}
-            <Pressable onPress={handleMoreOptions} hitSlop={8}>
+            <Pressable onPress={() => setMoreVisible(true)} hitSlop={8}>
               <Ionicons name="ellipsis-horizontal" size={24} color="#1A1A1A" />
             </Pressable>
 
@@ -663,11 +596,14 @@ export default function SaveDetail() {
         </View>
       </ScrollView>
 
-      <CollectionsPicker
-        visible={pickerVisible}
-        saveId={save.id}
-        userId={session?.user.id ?? ""}
-        onClose={() => setPickerVisible(false)}
+      <MoreOptionsSheet
+        visible={moreVisible}
+        onClose={() => setMoreVisible(false)}
+        onMoveToBoard={() => {
+          setMoreVisible(false);
+          router.push({ pathname: "/(app)/move-board", params: { id: save.id } } as never);
+        }}
+        onDelete={() => { setMoreVisible(false); handleDelete(); }}
       />
 
       <Toast message={toast} />

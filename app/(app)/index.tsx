@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CategoryIcon, getSaveTitle, PinCard } from "@/components/SaveCard";
+import { getActivityLastSeen } from "@/lib/activity";
 import type { Save, SaveCategory } from "@/lib/database.types";
 import {
   detectAndUpdateCity,
@@ -133,6 +134,7 @@ export default function Library() {
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [locationGranted, setLocationGranted] = useState(false);
   const [nearby, setNearby] = useState<NearbySave[]>([]);
+  const [hasUnreadActivity, setHasUnreadActivity] = useState(false);
 
   // Re-check permission whenever the screen regains focus (covers the user
   // granting it from OS Settings and coming back, not just our own prompts).
@@ -141,6 +143,19 @@ export default function Library() {
       void getLocationPermissionStatus().then((status) => setLocationGranted(status === "granted"));
     }, []),
   );
+
+  // Unread badge: compares the most recent save against when the user last
+  // opened the Activity screen. Re-checked on new saves and on focus (the
+  // latter catches the timestamp written when leaving the Activity screen).
+  const refreshUnreadActivity = useCallback(async () => {
+    const latestSaveAt = saves[0]?.created_at ?? null;
+    if (!latestSaveAt) { setHasUnreadActivity(false); return; }
+    const lastSeen = await getActivityLastSeen();
+    setHasUnreadActivity(!lastSeen || new Date(latestSaveAt).getTime() > new Date(lastSeen).getTime());
+  }, [saves]);
+
+  useEffect(() => { void refreshUnreadActivity(); }, [refreshUnreadActivity]);
+  useFocusEffect(useCallback(() => { void refreshUnreadActivity(); }, [refreshUnreadActivity]));
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   // Unique suffix per mount prevents "cannot add callbacks after subscribe()" when
@@ -282,8 +297,21 @@ export default function Library() {
             <Pressable onPress={() => router.push("/(app)/search" as never)} hitSlop={10}>
               <Ionicons name="search-outline" size={24} color="#1A1A1A" />
             </Pressable>
-            <Pressable hitSlop={10}>
+            <Pressable
+              onPress={() => router.push("/(app)/activity" as never)}
+              hitSlop={10}
+              style={{ position: "relative" }}
+            >
               <Ionicons name="notifications-outline" size={24} color="#1A1A1A" />
+              {hasUnreadActivity && (
+                <View
+                  style={{
+                    position: "absolute", top: -1, right: -1,
+                    width: 9, height: 9, borderRadius: 4.5,
+                    backgroundColor: "#E03131", borderWidth: 1.5, borderColor: "#FFFFFF",
+                  }}
+                />
+              )}
             </Pressable>
             <Pressable onPress={() => router.push("/(app)/profile" as never)} hitSlop={10}>
               <Ionicons name="person-circle-outline" size={26} color="#1A1A1A" />
