@@ -5,6 +5,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Image,
   Platform,
   Pressable,
   Text,
@@ -24,14 +25,12 @@ type Pending = "google" | "apple" | "guest" | null;
 // ---------------------------------------------------------------------------
 function DibsBadge() {
   return (
-    <View
-      style={{
-        width: 48, height: 48, borderRadius: 14,
-        backgroundColor: "#9013BB",
-        alignItems: "center", justifyContent: "center",
-      }}
-    >
-      <Text style={{ color: "#fff", fontSize: 22, fontWeight: "900", letterSpacing: -1 }}>d</Text>
+    <View style={{ width: 48, height: 48, borderRadius: 14, overflow: "hidden" }}>
+      <Image
+        source={require("@/assets/logo_d.png")}
+        style={{ width: "100%", height: "100%" }}
+        resizeMode="cover"
+      />
     </View>
   );
 }

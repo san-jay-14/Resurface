@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Animated,
   Pressable,
+  ScrollView,
   Text,
   View,
 } from "react-native";
@@ -22,6 +23,10 @@ interface DarkOnboardingScaffoldProps {
   primaryDisabled?: boolean;
   skipLabel?: string;
   onSkip?: () => void;
+  /** Renders the primary/skip buttons right after `children` instead of
+   *  pinned to the bottom of the screen — keeps the CTA next to the input
+   *  it acts on. */
+  buttonsInline?: boolean;
 }
 
 function StepDots({ step, total }: { step: number; total: number }) {
@@ -55,6 +60,7 @@ export function DarkOnboardingScaffold({
   primaryDisabled = false,
   skipLabel,
   onSkip,
+  buttonsInline = false,
 }: DarkOnboardingScaffoldProps) {
   const insets = useSafeAreaInsets();
 
@@ -86,6 +92,39 @@ export function DarkOnboardingScaffold({
     );
   };
 
+  const actions = (
+    <View style={{ gap: 12, marginTop: buttonsInline ? 24 : 0 }}>
+      <Pressable
+        onPress={onPrimary}
+        disabled={primaryLoading || primaryDisabled}
+        style={({ pressed }) => ({
+          backgroundColor: "#9013BB",
+          borderRadius: 18, paddingVertical: 17,
+          alignItems: "center", justifyContent: "center",
+          opacity: primaryDisabled ? 0.4 : pressed ? 0.85 : 1,
+        })}
+      >
+        {primaryLoading ? (
+          <ActivityIndicator color="#fff" size="small" />
+        ) : (
+          <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
+            {primaryLabel}
+          </Text>
+        )}
+      </Pressable>
+
+      {skipLabel && onSkip && (
+        <Pressable onPress={onSkip} style={{ alignItems: "center", paddingVertical: 6 }}>
+          <Text style={{
+            color: "rgba(26,26,26,0.35)", fontSize: 13, fontWeight: "500",
+          }}>
+            {skipLabel}
+          </Text>
+        </Pressable>
+      )}
+    </View>
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
       <StatusBar style="dark" />
@@ -96,13 +135,18 @@ export function DarkOnboardingScaffold({
           opacity: fadeAnim,
           transform: [{ translateY: slideAnim }],
           paddingTop: insets.top + 20,
-          paddingHorizontal: 24,
           justifyContent: "space-between",
           paddingBottom: Math.max(insets.bottom, 20) + 12,
         }}
       >
-        {/* Top content */}
-        <View style={{ flex: 1 }}>
+        {/* Top content — scrollable so it can never push the bottom actions
+            off-screen on shorter devices or content-heavy steps. */}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Step dots */}
           <StepDots step={step} total={totalSteps} />
 
@@ -127,42 +171,16 @@ export function DarkOnboardingScaffold({
               {children}
             </View>
           )}
-        </View>
+
+          {buttonsInline && actions}
+        </ScrollView>
 
         {/* Bottom actions */}
-        <View style={{ gap: 12, marginTop: 24 }}>
-          <Pressable
-            onPress={onPrimary}
-            disabled={primaryLoading || primaryDisabled}
-            style={({ pressed }) => ({
-              backgroundColor: primaryDisabled ? "#F0F0F0" : "#9013BB",
-              borderRadius: 18, paddingVertical: 17,
-              alignItems: "center", justifyContent: "center",
-              opacity: pressed ? 0.85 : 1,
-            })}
-          >
-            {primaryLoading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={{
-                color: primaryDisabled ? "#888888" : "#fff",
-                fontSize: 16, fontWeight: "700",
-              }}>
-                {primaryLabel}
-              </Text>
-            )}
-          </Pressable>
-
-          {skipLabel && onSkip && (
-            <Pressable onPress={onSkip} style={{ alignItems: "center", paddingVertical: 6 }}>
-              <Text style={{
-                color: "rgba(26,26,26,0.35)", fontSize: 13, fontWeight: "500",
-              }}>
-                {skipLabel}
-              </Text>
-            </Pressable>
-          )}
-        </View>
+        {!buttonsInline && (
+          <View style={{ paddingHorizontal: 24 }}>
+            {actions}
+          </View>
+        )}
       </Animated.View>
     </View>
   );

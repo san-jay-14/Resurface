@@ -39,6 +39,7 @@ export default function HomeCityStep() {
       primaryLoading={saving}
       primaryDisabled={trimmed.length === 0}
       onPrimary={onContinue}
+      buttonsInline
     >
       <TextInput
         value={city}

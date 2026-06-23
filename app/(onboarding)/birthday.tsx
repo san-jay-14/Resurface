@@ -66,6 +66,7 @@ export default function BirthdayStep() {
       onPrimary={() => persistAndContinue(date ? toISODate(date) : null)}
       skipLabel="keep it mysterious"
       onSkip={() => persistAndContinue(null)}
+      buttonsInline
     >
       <Pressable
         onPress={() => setShowPicker(true)}

@@ -50,12 +50,12 @@ export default function NotificationsStep() {
             key={n.emoji}
             style={{
               flexDirection: "row", alignItems: "flex-start", gap: 12,
-              backgroundColor: "#141414", borderRadius: 14,
-              padding: 14, borderWidth: 1, borderColor: "#222",
+              backgroundColor: "#F5F5F5", borderRadius: 14,
+              padding: 14, borderWidth: 1, borderColor: "#E5E5E5",
             }}
           >
             <Text style={{ fontSize: 20, marginTop: 1 }}>{n.emoji}</Text>
-            <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, lineHeight: 20, flex: 1 }}>
+            <Text style={{ color: "#555555", fontSize: 14, lineHeight: 20, flex: 1 }}>
               {n.text}
             </Text>
           </View>
