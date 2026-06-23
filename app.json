@@ -45,6 +45,12 @@
       "expo-apple-authentication",
       "@react-native-community/datetimepicker",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Dibs uses your photos to set a profile picture and attach screenshots to bug reports."
+        }
+      ],
+      [
         "@rnmapbox/maps",
         {
           "RNMapboxMapsVersion": "11.20.1"

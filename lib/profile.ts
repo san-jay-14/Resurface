@@ -8,11 +8,13 @@ export async function updateProfile(
     Pick<
       UserProfile,
       | "name"
+      | "avatar_url"
       | "birthday"
       | "home_city"
       | "home_city_lat"
       | "home_city_lng"
       | "notif_frequency_pref"
+      | "notification_prefs"
       | "onboarding_completed"
     >
   >,

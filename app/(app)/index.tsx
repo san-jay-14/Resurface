@@ -288,11 +288,13 @@ export default function Library() {
         paddingBottom: 16,
         backgroundColor: "#FFFFFF",
       }}>
-        {/* Row 1: brand headline + action icons */}
+        {/* Row 1: brand logo + action icons */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <Text style={{ fontSize: 26, fontWeight: "800", color: "#1A1A1A", letterSpacing: -0.5 }}>
-            dibs.
-          </Text>
+          <Image
+            source={require("@/assets/logo_black.png")}
+            style={{ height: 48, width: 88 }}
+            resizeMode="contain"
+          />
           <View style={{ flexDirection: "row", alignItems: "center", gap: 18 }}>
             <Pressable onPress={() => router.push("/(app)/search" as never)} hitSlop={10}>
               <Ionicons name="search-outline" size={24} color="#1A1A1A" />

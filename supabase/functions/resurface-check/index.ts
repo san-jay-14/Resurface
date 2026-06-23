@@ -398,6 +398,21 @@ async function processUser(
 ): Promise<{ sent: boolean; reason: string }> {
   log("process_user_start", { userId, trigger: trigger.type });
 
+  // Fetch user details + notification prefs up front so disabled trigger
+  // types short-circuit before any guard/AI work.
+  const { data: userRow } = await admin
+    .from("users")
+    .select("name, notification_prefs")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const prefs = (userRow?.notification_prefs as Record<string, boolean> | null) ?? {};
+  if ((trigger.type === "birthday" && prefs.birthday === false) ||
+      (trigger.type === "long_weekend" && prefs.long_weekend === false) ||
+      (trigger.type === "new_city" && prefs.new_city === false)) {
+    return { sent: false, reason: "trigger_disabled_by_user" };
+  }
+
   // Guard pipeline
   const guard = await runGuardPipeline(admin, userId, trigger.categories);
   log("guard_result", { userId, trigger: trigger.type, ...guard });
@@ -407,14 +422,6 @@ async function processUser(
   }
 
   const topSaves = guard.saves;
-
-  // Fetch user details for the AI prompt
-  const { data: userRow } = await admin
-    .from("users")
-    .select("name")
-    .eq("id", userId)
-    .maybeSingle();
-
   const firstName = (userRow?.name as string | null)?.split(" ")[0] ?? "";
 
   // Fetch device tokens
@@ -542,15 +549,15 @@ async function runNewCityTrigger(
   // Find users who are currently in a different city than their home.
   const { data: travelers } = await admin
     .from("users")
-    .select("id, name, home_city, current_city")
+    .select("id, name, home_city, current_city, notification_prefs")
     .not("current_city", "is", null)
     .not("home_city", "is", null);
 
-  const awayUsers = (travelers ?? []).filter(
-    (u) =>
-      (u.current_city as string).toLowerCase() !==
-      (u.home_city as string).toLowerCase(),
-  );
+  const awayUsers = (travelers ?? []).filter((u) => {
+    const prefs = (u.notification_prefs as Record<string, boolean> | null) ?? {};
+    if (prefs.new_city === false) return false;
+    return (u.current_city as string).toLowerCase() !== (u.home_city as string).toLowerCase();
+  });
 
   if (awayUsers.length === 0) return { skipped: true, reason: "no_users_away" };
 

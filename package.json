@@ -17,6 +17,7 @@
     "expo-crypto": "~56.0.4",
     "expo-dev-client": "~56.0.19",
     "expo-device": "~56.0.4",
+    "expo-image-picker": "~56.0.18",
     "expo-linking": "~56.0.13",
     "expo-location": "~56.0.16",
     "expo-notifications": "~56.0.15",

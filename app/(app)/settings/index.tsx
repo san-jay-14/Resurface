@@ -172,6 +172,7 @@ export default function SettingsScreen() {
     "You";
   const email = session?.user?.email ?? "";
   const avatarUrl: string | null =
+    profile?.avatar_url ??
     (meta.avatar_url as string | undefined) ??
     (meta.picture as string | undefined) ??
     null;
@@ -303,7 +304,6 @@ export default function SettingsScreen() {
             icon="sparkles-outline"
             label={"Clean\nUp"}
             onPress={() => router.push("/(app)/cleanup" as never)}
-            comingSoon
           />
           <QuickTile
             icon="gift-outline"
@@ -326,7 +326,6 @@ export default function SettingsScreen() {
             icon="sparkles-outline"
             label="Clean Up Library"
             onPress={() => router.push("/(app)/cleanup" as never)}
-            comingSoon
           />
           <RowDivider />
           <MenuRow
@@ -342,13 +341,23 @@ export default function SettingsScreen() {
           <MenuRow
             icon="person-outline"
             label="Edit Profile"
-            onPress={() => router.push("/(app)/profile" as never)}
+            onPress={() => router.push("/(app)/settings/edit-profile" as never)}
           />
           <RowDivider />
           <MenuRow
             icon="notifications-outline"
             label="Notification Preferences"
-            onPress={() => {}}
+            onPress={() => router.push("/(app)/settings/notifications" as never)}
+          />
+        </MenuCard>
+
+        {/* ── Support ── */}
+        <View style={{ height: 16 }} />
+        <MenuCard>
+          <MenuRow
+            icon="bug-outline"
+            label="Report a bug"
+            onPress={() => router.push("/(app)/settings/report-bug" as never)}
           />
         </MenuCard>
 

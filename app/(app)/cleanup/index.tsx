@@ -72,8 +72,6 @@ export default function CleanupDeckScreen() {
 
   const fetchDormantSaves = async () => {
     if (!session) return;
-    const cutoff = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
-    const viewCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
     const { data } = await supabase
       .from("saves")
@@ -81,11 +79,8 @@ export default function CleanupDeckScreen() {
       .eq("user_id", session.user.id)
       .eq("archived", false)
       .eq("acted_on", false)
-      .is("note", null)
-      .lt("created_at", cutoff)
-      .or(`last_viewed_at.is.null,last_viewed_at.lt.${viewCutoff}`)
       .order("created_at", { ascending: true })
-      .limit(10);
+      .limit(50);
 
     setSaves((data as Save[]) ?? []);
     setLoading(false);
@@ -230,7 +225,8 @@ export default function CleanupDeckScreen() {
 
       {/* Card stack */}
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        {/* Next card (static, shown behind) */}
+        {/* Next card (static, shown behind) — also preloads its thumbnail so
+            there's no load delay once it becomes the active card. */}
         {saves[currentIndex + 1] && (
           <View
             style={{
@@ -243,7 +239,17 @@ export default function CleanupDeckScreen() {
               transform: [{ scale: 0.94 }, { translateY: 14 }],
             }}
           >
-            <View style={{ aspectRatio: 0.75, backgroundColor: "#E5E5E5" }} />
+            {saves[currentIndex + 1].thumbnail_url ? (
+              <Image
+                source={{ uri: saves[currentIndex + 1].thumbnail_url! }}
+                style={{ width: "100%", aspectRatio: 0.85 }}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={{ width: "100%", aspectRatio: 0.85, backgroundColor: "#E5E5E5", alignItems: "center", justifyContent: "center" }}>
+                <CategoryIcon category={saves[currentIndex + 1].category} size={48} />
+              </View>
+            )}
           </View>
         )}
 

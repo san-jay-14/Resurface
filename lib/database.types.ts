@@ -34,6 +34,7 @@ export interface UserProfile {
   id: string;
   name: string | null;
   email: string | null;
+  avatar_url: string | null;
   birthday: string | null;
   home_city: string | null;
   home_city_lat: number | null;
@@ -43,6 +44,7 @@ export interface UserProfile {
   current_city_lng: number | null;
   current_city_updated_at: string | null;
   notif_frequency_pref: string;
+  notification_prefs: NotificationPrefs;
   last_notified_at: string | null;
   is_guest: boolean;
   onboarding_completed: boolean;
@@ -56,6 +58,22 @@ export interface FeatureFlags {
   cleanup_mode_enabled: boolean;
   wrapped_enabled: boolean;
   shared_boards_enabled: boolean;
+}
+
+export interface NotificationPrefs {
+  new_city: boolean;
+  birthday: boolean;
+  long_weekend: boolean;
+  frequency: "normal" | "minimal";
+}
+
+export interface BugReport {
+  id: string;
+  user_id: string;
+  message: string;
+  attachments: string[];
+  status: string;
+  created_at: string;
 }
 
 export interface Save {
