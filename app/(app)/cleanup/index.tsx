@@ -52,6 +52,10 @@ export default function CleanupDeckScreen() {
 
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
+  const glowOpacityOuter = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.12] });
+  const glowOpacityInner = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.22] });
+  const glowScale = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.05] });
   const rotate = translateX.interpolate({
     inputRange: [-SCREEN_W, 0, SCREEN_W],
     outputRange: ["-25deg", "0deg", "25deg"],
@@ -86,7 +90,16 @@ export default function CleanupDeckScreen() {
     setLoading(false);
   };
 
+  const pulseGlow = () => {
+    glowAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(glowAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.timing(glowAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]).start();
+  };
+
   const commitAction = async (save: Save, action: "archive" | "keep" | "done") => {
+    pulseGlow();
     setUndoStack((prev) => [...prev, { save, action }]);
     setCurrentIndex((i) => i + 1);
     setSummary((s) => ({ ...s, [action === "archive" ? "archived" : action === "keep" ? "kept" : "done"]: s[action === "archive" ? "archived" : action === "keep" ? "kept" : "done"] + 1 }));
@@ -225,6 +238,30 @@ export default function CleanupDeckScreen() {
 
       {/* Card stack */}
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        {/* Subtle purple glow pulse behind the deck on every swipe/action */}
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            width: CARD_W * 1.5, height: CARD_W * 1.5,
+            borderRadius: (CARD_W * 1.5) / 2,
+            backgroundColor: "#9013BB",
+            opacity: glowOpacityOuter,
+            transform: [{ scale: glowScale }],
+          }}
+        />
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            width: CARD_W * 1.05, height: CARD_W * 1.05,
+            borderRadius: (CARD_W * 1.05) / 2,
+            backgroundColor: "#9013BB",
+            opacity: glowOpacityInner,
+            transform: [{ scale: glowScale }],
+          }}
+        />
+
         {/* Next card (static, shown behind) — also preloads its thumbnail so
             there's no load delay once it becomes the active card. */}
         {saves[currentIndex + 1] && (
