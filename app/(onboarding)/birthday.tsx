@@ -1,12 +1,11 @@
-import DateTimePicker, {
-  type DateTimePickerEvent,
-} from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, Platform, Pressable, Text } from "react-native";
+import { Pressable, Text } from "react-native";
 
+import { AppDatePicker } from "@/components/AppDatePicker";
 import { DarkOnboardingScaffold } from "@/components/DarkOnboardingScaffold";
 import { updateProfile } from "@/lib/profile";
+import { appAlert } from "@/providers/AlertProvider";
 import { useAuth } from "@/providers/AuthProvider";
 
 function toISODate(d: Date): string {
@@ -29,16 +28,6 @@ export default function BirthdayStep() {
   const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  function onChange(event: DateTimePickerEvent, selected?: Date) {
-    setShowPicker(Platform.OS === "ios");
-    if (event.type === "set" && selected) {
-      setDate(selected);
-      if (Platform.OS !== "ios") {
-        void persistAndContinue(toISODate(selected));
-      }
-    }
-  }
-
   async function persistAndContinue(birthday: string | null) {
     if (!session) return;
     try {
@@ -47,7 +36,7 @@ export default function BirthdayStep() {
       await refreshProfile();
       router.push("/(onboarding)/home-city");
     } catch (err) {
-      Alert.alert("Hmm", err instanceof Error ? err.message : "Couldn't save that.");
+      appAlert("Hmm", err instanceof Error ? err.message : "Couldn't save that.");
     } finally {
       setSaving(false);
     }
@@ -82,16 +71,13 @@ export default function BirthdayStep() {
         </Text>
       </Pressable>
 
-      {showPicker && (
-        <DateTimePicker
-          value={date ?? new Date(2000, 0, 1)}
-          mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          maximumDate={new Date()}
-          onChange={onChange}
-          themeVariant="light"
-        />
-      )}
+      <AppDatePicker
+        visible={showPicker}
+        value={date ?? new Date(2000, 0, 1)}
+        maximumDate={new Date()}
+        onClose={() => setShowPicker(false)}
+        onChange={(selected) => setDate(selected)}
+      />
     </DarkOnboardingScaffold>
   );
 }

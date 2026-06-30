@@ -1,14 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { StatusBar } from "expo-status-bar";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
-  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -17,7 +14,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AppDatePicker } from "@/components/AppDatePicker";
 import { updateProfile } from "@/lib/profile";
+import { appAlert } from "@/providers/AlertProvider";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -96,7 +95,7 @@ export default function EditProfileScreen() {
   const pickAvatar = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert("Permission needed", "Allow photo access to set a profile picture.");
+      appAlert("Permission needed", "Allow photo access to set a profile picture.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -125,18 +124,17 @@ export default function EditProfileScreen() {
       await updateProfile(session.user.id, { avatar_url: `${data.publicUrl}?t=${Date.now()}` });
       await refreshProfile();
     } catch (err) {
-      Alert.alert("Couldn't update photo", err instanceof Error ? err.message : "Try again.");
+      appAlert("Couldn't update photo", err instanceof Error ? err.message : "Try again.");
     } finally {
       setUploadingAvatar(false);
     }
   };
 
-  const onBirthdayChange = (event: DateTimePickerEvent, selected?: Date) => {
-    setShowPicker(Platform.OS === "ios");
-    if (event.type === "set" && selected && session) {
-      const iso = toISODate(selected);
-      void updateProfile(session.user.id, { birthday: iso }).then(() => refreshProfile());
-    }
+  const onBirthdayChange = (selected: Date) => {
+    setShowPicker(false);
+    if (!session) return;
+    const iso = toISODate(selected);
+    void updateProfile(session.user.id, { birthday: iso }).then(() => refreshProfile());
   };
 
   const handleSave = async () => {
@@ -147,7 +145,7 @@ export default function EditProfileScreen() {
       await refreshProfile();
       router.back();
     } catch (err) {
-      Alert.alert("Couldn't save", err instanceof Error ? err.message : "Try again.");
+      appAlert("Couldn't save", err instanceof Error ? err.message : "Try again.");
     } finally {
       setSaving(false);
     }
@@ -241,16 +239,13 @@ export default function EditProfileScreen() {
         />
       </ScrollView>
 
-      {showPicker && (
-        <DateTimePicker
-          value={profile?.birthday ? new Date(`${profile.birthday}T00:00:00`) : new Date(2000, 0, 1)}
-          mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          maximumDate={new Date()}
-          onChange={onBirthdayChange}
-          themeVariant="light"
-        />
-      )}
+      <AppDatePicker
+        visible={showPicker}
+        value={profile?.birthday ? new Date(`${profile.birthday}T00:00:00`) : new Date(2000, 0, 1)}
+        maximumDate={new Date()}
+        onClose={() => setShowPicker(false)}
+        onChange={onBirthdayChange}
+      />
     </View>
   );
 }

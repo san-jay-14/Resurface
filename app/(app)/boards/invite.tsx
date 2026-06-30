@@ -4,7 +4,6 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,8 +13,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useAuth } from "@/providers/AuthProvider";
 import { env } from "@/lib/env";
+import { appAlert } from "@/providers/AlertProvider";
+import { useAuth } from "@/providers/AuthProvider";
 
 export default function JoinBoardScreen() {
   const { session } = useAuth();
@@ -45,7 +45,7 @@ export default function JoinBoardScreen() {
       const json = await res.json() as { ok: boolean; board?: { id: string; name: string; save_count: number }; error?: string };
 
       if (!json.ok || !json.board) {
-        Alert.alert("Couldn't join", json.error ?? "Something went wrong.");
+        appAlert("Couldn't join", json.error ?? "Something went wrong.");
         return;
       }
 
@@ -58,7 +58,7 @@ export default function JoinBoardScreen() {
         },
       } as never);
     } catch {
-      Alert.alert("Couldn't connect", "Check your connection and try again.");
+      appAlert("Couldn't connect", "Check your connection and try again.");
     } finally {
       setLoading(false);
     }

@@ -4,7 +4,6 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   Text,
@@ -14,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { WrappedHistory } from "@/lib/database.types";
 import { WrappedCard } from "@/components/WrappedCard";
+import { appAlert } from "@/providers/AlertProvider";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 import { env } from "@/lib/env";
@@ -57,12 +57,12 @@ export default function WrappedHistoryScreen() {
       );
       const json = await res.json() as { ok: boolean; error?: string };
       if (!json.ok) {
-        Alert.alert("Couldn't generate", json.error ?? "Try again later.");
+        appAlert("Couldn't generate", json.error ?? "Try again later.");
         return;
       }
       await fetchHistory();
     } catch {
-      Alert.alert("Couldn't connect", "Try again later.");
+      appAlert("Couldn't connect", "Try again later.");
     } finally {
       setGenerating(false);
     }

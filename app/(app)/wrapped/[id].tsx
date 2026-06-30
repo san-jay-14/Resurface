@@ -4,7 +4,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   Share,
   Text,
@@ -15,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { WrappedCard } from "@/components/WrappedCard";
 import type { WrappedHistory } from "@/lib/database.types";
+import { appAlert } from "@/providers/AlertProvider";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -49,7 +49,7 @@ export default function WrappedCardScreen() {
         await Share.share({ url: uri, title: "My Dibs Wrapped" });
       }
     } catch {
-      Alert.alert("Couldn't share", "Try again later.");
+      appAlert("Couldn't share", "Try again later.");
     }
   };
 

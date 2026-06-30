@@ -4,14 +4,11 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Dimensions,
   Image,
-  Modal,
   Pressable,
   ScrollView,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,6 +19,7 @@ import {
   PinCard,
 } from "@/components/SaveCard";
 import type { Save, SaveCategory, SourcePlatform } from "@/lib/database.types";
+import { appAlert } from "@/providers/AlertProvider";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -124,91 +122,6 @@ function BoardCard({ item }: { item: BoardItem }) {
 }
 
 // ---------------------------------------------------------------------------
-// Create board modal (dark-themed)
-// ---------------------------------------------------------------------------
-function CreateBoardModal({
-  visible,
-  userId,
-  onCreated,
-  onClose,
-}: {
-  visible: boolean;
-  userId: string;
-  onCreated: () => void;
-  onClose: () => void;
-}) {
-  const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const create = async () => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    setLoading(true);
-    const { error } = await supabase
-      .from("collections")
-      .insert({ user_id: userId, name: trimmed });
-    setLoading(false);
-    if (error) {
-      Alert.alert(
-        "Error",
-        error.message.includes("unique")
-          ? `A board called "${trimmed}" already exists.`
-          : error.message,
-      );
-      return;
-    }
-    setName("");
-    onCreated();
-    onClose();
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }} onPress={onClose} />
-      <View
-        style={{
-          backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24,
-          paddingHorizontal: 20, paddingTop: 20, paddingBottom: 44,
-        }}
-      >
-        <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "700", marginBottom: 16 }}>
-          New board
-        </Text>
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          placeholder="e.g. Goa trip, Diwali shopping…"
-          placeholderTextColor="#888"
-          maxLength={50}
-          autoFocus
-          returnKeyType="done"
-          onSubmitEditing={create}
-          style={{
-            backgroundColor: "#F5F5F5", borderRadius: 14, paddingHorizontal: 16,
-            paddingVertical: 12, color: "#1A1A1A", fontSize: 14, marginBottom: 16,
-          }}
-        />
-        <Pressable
-          onPress={create}
-          disabled={loading || !name.trim()}
-          style={{
-            backgroundColor: name.trim() ? "#9013BB" : "#F0F0F0",
-            borderRadius: 32, paddingVertical: 15, alignItems: "center",
-          }}
-        >
-          {loading
-            ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={{ color: name.trim() ? "#fff" : "#888", fontSize: 15, fontWeight: "700" }}>
-                Create board
-              </Text>
-          }
-        </Pressable>
-      </View>
-    </Modal>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Profile screen
 // ---------------------------------------------------------------------------
 type ProfileTab = "favourites" | "boards" | "platform";
@@ -235,7 +148,6 @@ export default function ProfileScreen() {
   const [allSaves, setAllSaves] = useState<Save[]>([]);
   const [customBoards, setCustomBoards] = useState<BoardData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [createBoardVisible, setCreateBoardVisible] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!session) return;
@@ -407,7 +319,7 @@ export default function ProfileScreen() {
           <Text style={{ color: "#888", fontSize: 15 }}>Search your saves</Text>
         </Pressable>
         <Pressable
-          onPress={() => setCreateBoardVisible(true)}
+          onPress={() => router.push("/(app)/boards/create" as never)}
           style={{
             width: 44, height: 44, borderRadius: 22,
             backgroundColor: "#9013BB", alignItems: "center", justifyContent: "center",
@@ -432,7 +344,7 @@ export default function ProfileScreen() {
           {/* Wrapped teaser */}
           {activeTab === "favourites" && allSaves.length >= 15 && (
             <Pressable
-              onPress={() => Alert.alert("Coming soon", "We're working on it — stay tuned!")}
+              onPress={() => appAlert("Coming soon", "We're working on it — stay tuned!")}
               style={{
                 marginHorizontal: 16, marginBottom: 16,
                 backgroundColor: "#F0E8F7",
@@ -553,7 +465,7 @@ export default function ProfileScreen() {
                       Tap + to create your first board.
                     </Text>
                     <Pressable
-                      onPress={() => setCreateBoardVisible(true)}
+                      onPress={() => router.push("/(app)/boards/create" as never)}
                       style={{ marginTop: 16, backgroundColor: "#9013BB", borderRadius: 24, paddingHorizontal: 24, paddingVertical: 11 }}
                     >
                       <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>Create board</Text>
@@ -626,13 +538,6 @@ export default function ProfileScreen() {
           )}
         </ScrollView>
       )}
-
-      <CreateBoardModal
-        visible={createBoardVisible}
-        userId={session?.user.id ?? ""}
-        onCreated={loadData}
-        onClose={() => setCreateBoardVisible(false)}
-      />
 
     </View>
   );

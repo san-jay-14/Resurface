@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import {
-  Alert,
   Dimensions,
   Image,
   Pressable,
@@ -12,6 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { appAlert } from "@/providers/AlertProvider";
 import { useAuth } from "@/providers/AuthProvider";
 
 const SCREEN_W = Dimensions.get("window").width;
@@ -23,7 +23,7 @@ function QuickTile({ icon, label, onPress, comingSoon }: {
   icon: string; label: string; onPress: () => void; comingSoon?: boolean;
 }) {
   const handlePress = comingSoon
-    ? () => Alert.alert("Coming soon", "We're working on it — stay tuned!")
+    ? () => appAlert("Coming soon", "We're working on it — stay tuned!")
     : onPress;
 
   return (
@@ -78,7 +78,7 @@ function MenuRow({
   icon, label, onPress, danger, comingSoon,
 }: { icon: string; label: string; onPress: () => void; danger?: boolean; comingSoon?: boolean }) {
   const handlePress = comingSoon
-    ? () => Alert.alert("Coming soon", "We're working on it — stay tuned!")
+    ? () => appAlert("Coming soon", "We're working on it — stay tuned!")
     : onPress;
 
   return (
@@ -183,7 +183,7 @@ export default function SettingsScreen() {
     .join("");
 
   const handleSignOut = () => {
-    Alert.alert("Sign out", "Are you sure you want to sign out?", [
+    appAlert("Sign out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       { text: "Sign out", style: "destructive", onPress: signOut },
     ]);

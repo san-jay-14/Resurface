@@ -101,6 +101,8 @@ export interface Save {
   category_confidence: number | null;
   source_username: string | null;
   sub_category_id: string | null;
+  remind_at: string | null;
+  reminded_at: string | null;
 }
 
 export interface UserSubCategory {
@@ -132,6 +134,9 @@ export interface Collection {
   id: string;
   user_id: string;
   name: string;
+  description: string | null;
+  requires_location: boolean;
+  source_category: SaveCategory | null;
   is_shared: boolean;
   invite_code: string | null;
   owner_id: string | null;

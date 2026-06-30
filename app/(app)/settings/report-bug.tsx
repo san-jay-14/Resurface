@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -15,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { appAlert } from "@/providers/AlertProvider";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -58,18 +58,18 @@ export default function ReportBugScreen() {
       );
     } catch (err) {
       setAttachments((prev) => prev.filter((a) => a.uri !== uri));
-      Alert.alert("Upload failed", err instanceof Error ? err.message : "Couldn't attach that file.");
+      appAlert("Upload failed", err instanceof Error ? err.message : "Couldn't attach that file.");
     }
   };
 
   const pickAttachments = async () => {
     if (attachments.length >= MAX_ATTACHMENTS) {
-      Alert.alert("Limit reached", `You can attach up to ${MAX_ATTACHMENTS} files.`);
+      appAlert("Limit reached", `You can attach up to ${MAX_ATTACHMENTS} files.`);
       return;
     }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert("Permission needed", "Allow photo access to attach a screenshot.");
+      appAlert("Permission needed", "Allow photo access to attach a screenshot.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -98,11 +98,11 @@ export default function ReportBugScreen() {
         attachments: attachments.map((a) => a.path).filter((p): p is string => p !== null),
       });
       if (error) throw error;
-      Alert.alert("Thanks!", "We've logged your report and will take a look.", [
+      appAlert("Thanks!", "We've logged your report and will take a look.", [
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch (err) {
-      Alert.alert("Couldn't submit", err instanceof Error ? err.message : "Try again.");
+      appAlert("Couldn't submit", err instanceof Error ? err.message : "Try again.");
     } finally {
       setSubmitting(false);
     }

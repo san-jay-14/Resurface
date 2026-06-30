@@ -4,19 +4,20 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Linking,
   Modal,
   Pressable,
   ScrollView,
   Share,
+  Switch,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AppDatePicker } from "@/components/AppDatePicker";
 import {
   ACTED_ON_VERB,
   CategoryIcon,
@@ -27,6 +28,7 @@ import {
   getSaveTitle,
 } from "@/components/SaveCard";
 import type { Save, SaveLocation } from "@/lib/database.types";
+import { appAlert } from "@/providers/AlertProvider";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -52,8 +54,15 @@ function Toast({ message }: { message: string | null }) {
 // More-options sheet — styled replacement for the old native Alert menu.
 // ---------------------------------------------------------------------------
 function MoreOptionsSheet({
-  visible, onClose, onMoveToBoard, onDelete,
-}: { visible: boolean; onClose: () => void; onMoveToBoard: () => void; onDelete: () => void }) {
+  visible, hasNote, onClose, onMoveToBoard, onAddNote, onDelete,
+}: {
+  visible: boolean;
+  hasNote: boolean;
+  onClose: () => void;
+  onMoveToBoard: () => void;
+  onAddNote: () => void;
+  onDelete: () => void;
+}) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }} onPress={onClose} />
@@ -76,6 +85,23 @@ function MoreOptionsSheet({
             <Ionicons name="albums-outline" size={18} color="#9013BB" />
           </View>
           <Text style={{ fontSize: 15, color: "#1A1A1A", fontWeight: "500" }}>Move to board</Text>
+        </Pressable>
+
+        <View style={{ height: 1, backgroundColor: "#F0F0F0", marginLeft: 70 }} />
+
+        <Pressable
+          onPress={onAddNote}
+          style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 20, paddingVertical: 16 }}
+        >
+          <View style={{
+            width: 36, height: 36, borderRadius: 18,
+            backgroundColor: "#F0E8F7", alignItems: "center", justifyContent: "center",
+          }}>
+            <Ionicons name="document-text-outline" size={18} color="#9013BB" />
+          </View>
+          <Text style={{ fontSize: 15, color: "#1A1A1A", fontWeight: "500" }}>
+            {hasNote ? "Edit note & reminder" : "Add note & reminder"}
+          </Text>
         </Pressable>
 
         <View style={{ height: 1, backgroundColor: "#F0F0F0", marginLeft: 70 }} />
@@ -105,6 +131,129 @@ function MoreOptionsSheet({
 }
 
 // ---------------------------------------------------------------------------
+// Note & reminder modal
+// ---------------------------------------------------------------------------
+function NoteReminderModal({
+  visible, initialNote, initialRemindAt, onClose, onSave,
+}: {
+  visible: boolean;
+  initialNote: string;
+  initialRemindAt: string | null;
+  onClose: () => void;
+  onSave: (note: string | null, remindAt: string | null) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [text, setText] = useState(initialNote);
+  const [reminderOn, setReminderOn] = useState(!!initialRemindAt);
+  const [date, setDate] = useState(initialRemindAt ? new Date(initialRemindAt) : new Date(Date.now() + 86_400_000));
+  const [showPicker, setShowPicker] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setText(initialNote);
+    setReminderOn(!!initialRemindAt);
+    setDate(initialRemindAt ? new Date(initialRemindAt) : new Date(Date.now() + 86_400_000));
+  }, [visible, initialNote, initialRemindAt]);
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }} onPress={onClose} />
+      <View
+        style={{
+          backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24,
+          paddingHorizontal: 20, paddingTop: 20, paddingBottom: Math.max(insets.bottom, 20) + 12,
+        }}
+      >
+        <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: "#E5E5E5", alignSelf: "center", marginBottom: 16 }} />
+
+        <Text style={{ color: "#1A1A1A", fontSize: 16, fontWeight: "700", marginBottom: 4 }}>
+          Note & reminder
+        </Text>
+        <Text style={{ color: "#888", fontSize: 12.5, lineHeight: 18, marginBottom: 16 }}>
+          Jot down why you saved this — Dibs uses it to understand your saves
+          better. You can also ask it to remind you about this on a specific date.
+        </Text>
+
+        <TextInput
+          value={text}
+          onChangeText={setText}
+          multiline
+          maxLength={280}
+          placeholder="Why did you save this?"
+          placeholderTextColor="#888"
+          style={{
+            backgroundColor: "#F5F5F5", borderRadius: 16, padding: 14,
+            color: "#1A1A1A", fontSize: 14, lineHeight: 21, minHeight: 90,
+            textAlignVertical: "top",
+          }}
+        />
+        <Text style={{ color: "#888", fontSize: 11, textAlign: "right", marginTop: 4, marginBottom: 18 }}>
+          {text.length}/280
+        </Text>
+
+        <View style={{
+          flexDirection: "row", alignItems: "center", gap: 12,
+          backgroundColor: "#F5F5F5", borderRadius: 16, padding: 14,
+        }}>
+          <View style={{
+            width: 36, height: 36, borderRadius: 18,
+            backgroundColor: "#F0E8F7", alignItems: "center", justifyContent: "center",
+          }}>
+            <Ionicons name="alarm-outline" size={18} color="#9013BB" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: "700", color: "#1A1A1A" }}>Remind me</Text>
+            <Text style={{ fontSize: 11.5, color: "#888", marginTop: 1 }}>
+              Get a nudge about this save on a date you pick.
+            </Text>
+          </View>
+          <Switch
+            value={reminderOn}
+            onValueChange={setReminderOn}
+            trackColor={{ false: "#E5E5E5", true: "#D9B3EE" }}
+            thumbColor={reminderOn ? "#9013BB" : "#FFFFFF"}
+          />
+        </View>
+
+        {reminderOn && (
+          <Pressable
+            onPress={() => setShowPicker(true)}
+            style={{
+              marginTop: 10, backgroundColor: "#F5F5F5", borderRadius: 14,
+              paddingHorizontal: 16, paddingVertical: 13,
+              flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+            }}
+          >
+            <Text style={{ color: "#1A1A1A", fontSize: 14 }}>
+              {date.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}
+            </Text>
+            <Ionicons name="calendar-outline" size={18} color="#9013BB" />
+          </Pressable>
+        )}
+
+        <AppDatePicker
+          visible={showPicker}
+          value={date}
+          minimumDate={new Date()}
+          onClose={() => setShowPicker(false)}
+          onChange={(selected) => setDate(selected)}
+        />
+
+        <Pressable
+          onPress={() => onSave(text.trim() || null, reminderOn ? date.toISOString() : null)}
+          style={{
+            marginTop: 20, backgroundColor: "#9013BB", borderRadius: 32,
+            paddingVertical: 16, alignItems: "center",
+          }}
+        >
+          <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>Save</Text>
+        </Pressable>
+      </View>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Detail screen
 // ---------------------------------------------------------------------------
 export default function SaveDetail() {
@@ -116,12 +265,10 @@ export default function SaveDetail() {
   const [save, setSave] = useState<Save | null>(null);
   const [location, setLocation] = useState<SaveLocation | null>(null);
   const [loading, setLoading] = useState(true);
-  const [noteText, setNoteText] = useState("");
-  const [noteExpanded, setNoteExpanded] = useState(false);
   const [moreVisible, setMoreVisible] = useState(false);
+  const [noteModalVisible, setNoteModalVisible] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [moreSaves, setMoreSaves] = useState<Save[]>([]);
-  const noteRef = useRef<TextInput>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -137,7 +284,6 @@ export default function SaveDetail() {
       ]);
       if (saveRes.error || !saveRes.data) { setLoading(false); return; }
       setSave(saveRes.data as Save);
-      setNoteText((saveRes.data as Save).note ?? "");
       if (locRes.data) setLocation(locRes.data as SaveLocation);
       setLoading(false);
       // Track last_viewed_at for dormancy calculations
@@ -204,11 +350,17 @@ export default function SaveDetail() {
     );
   };
 
-  const saveNote = async () => {
+  const saveNoteAndReminder = async (note: string | null, remindAt: string | null) => {
     if (!save) return;
-    setNoteExpanded(false);
-    const trimmed = noteText.trim() || null;
-    await patchSave({ note: trimmed }, { note: save.note });
+    setNoteModalVisible(false);
+    // Reset reminded_at whenever the reminder date changes so a previously
+    // fired reminder can fire again for a new date.
+    const reminderChanged = remindAt !== save.remind_at;
+    await patchSave(
+      { note, remind_at: remindAt, reminded_at: reminderChanged ? null : save.reminded_at },
+      { note: save.note, remind_at: save.remind_at, reminded_at: save.reminded_at },
+    );
+    showToast(remindAt ? "Note & reminder saved" : "Note saved");
   };
 
   const handleShare = async () => {
@@ -218,7 +370,7 @@ export default function SaveDetail() {
   };
 
   const handleDelete = () => {
-    Alert.alert("Delete this save?", "It'll be archived and recoverable for 30 days.", [
+    appAlert("Delete this save?", "It'll be archived and recoverable for 30 days.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete", style: "destructive",
@@ -395,40 +547,16 @@ export default function SaveDetail() {
             </Text>
           )}
 
-          {/* ── Title + chevron ── */}
-          <View
+          {/* ── Title ── */}
+          <Text
             style={{
-              flexDirection: "row", alignItems: "flex-start",
-              gap: 10, marginBottom: 10,
+              color: "#1A1A1A", fontSize: 22,
+              fontWeight: "800", lineHeight: 28, marginBottom: 10,
             }}
+            numberOfLines={2}
           >
-            <Text
-              style={{
-                flex: 1, color: "#1A1A1A", fontSize: 22,
-                fontWeight: "800", lineHeight: 28,
-              }}
-              numberOfLines={noteExpanded ? undefined : 2}
-            >
-              {title}
-            </Text>
-            <Pressable
-              onPress={() => {
-                setNoteExpanded((v) => !v);
-                if (!noteExpanded) setTimeout(() => noteRef.current?.focus(), 60);
-              }}
-              style={{
-                backgroundColor: "#F5F5F5", borderRadius: 10,
-                width: 34, height: 34, alignItems: "center", justifyContent: "center",
-                marginTop: 2,
-              }}
-            >
-              <Ionicons
-                name={noteExpanded ? "chevron-up" : "chevron-down"}
-                size={15}
-                color="#1A1A1A"
-              />
-            </Pressable>
-          </View>
+            {title}
+          </Text>
 
           {/* ── Description (caption or AI description) ── */}
           {(save.caption || save.ai_description) && (
@@ -464,74 +592,6 @@ export default function SaveDetail() {
                 </View>
               ))}
             </View>
-          )}
-
-          {/* ── Note area ── */}
-          {noteExpanded ? (
-            <View
-              style={{
-                backgroundColor: "#F5F5F5", borderRadius: 16,
-                padding: 14, marginBottom: 18,
-              }}
-            >
-              <TextInput
-                ref={noteRef}
-                value={noteText}
-                onChangeText={setNoteText}
-                multiline
-                maxLength={280}
-                placeholder="Why did you save this?"
-                placeholderTextColor="#888"
-                style={{
-                  color: "#1A1A1A", fontSize: 14, lineHeight: 21,
-                  minHeight: 64,
-                }}
-              />
-              <View
-                style={{
-                  flexDirection: "row", justifyContent: "space-between",
-                  alignItems: "center", marginTop: 10,
-                }}
-              >
-                <Text style={{ color: "#888", fontSize: 12 }}>{noteText.length}/280</Text>
-                <Pressable
-                  onPress={saveNote}
-                  style={{
-                    backgroundColor: "#9013BB", borderRadius: 10,
-                    paddingHorizontal: 16, paddingVertical: 7,
-                  }}
-                >
-                  <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>Save</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : save.note ? (
-            <Pressable
-              onPress={() => {
-                setNoteExpanded(true);
-                setTimeout(() => noteRef.current?.focus(), 60);
-              }}
-              style={{ marginBottom: 18 }}
-            >
-              <Text style={{ color: "#888", fontSize: 14 }} numberOfLines={1}>
-                "{save.note}"
-                {"  "}
-                <Text style={{ color: "#bbb", fontWeight: "500" }}>Edit note</Text>
-              </Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              onPress={() => {
-                setNoteExpanded(true);
-                setTimeout(() => noteRef.current?.focus(), 60);
-              }}
-              style={{ marginBottom: 18 }}
-            >
-              <Text style={{ color: "#444", fontSize: 14 }}>
-                Add a note…{"  "}
-                <Text style={{ color: "#666" }}>Why did you save this?</Text>
-              </Text>
-            </Pressable>
           )}
 
           {/* ── Open original (Visit site) ── */}
@@ -598,12 +658,22 @@ export default function SaveDetail() {
 
       <MoreOptionsSheet
         visible={moreVisible}
+        hasNote={!!save.note || !!save.remind_at}
         onClose={() => setMoreVisible(false)}
         onMoveToBoard={() => {
           setMoreVisible(false);
           router.push({ pathname: "/(app)/move-board", params: { id: save.id } } as never);
         }}
+        onAddNote={() => { setMoreVisible(false); setNoteModalVisible(true); }}
         onDelete={() => { setMoreVisible(false); handleDelete(); }}
+      />
+
+      <NoteReminderModal
+        visible={noteModalVisible}
+        initialNote={save.note ?? ""}
+        initialRemindAt={save.remind_at}
+        onClose={() => setNoteModalVisible(false)}
+        onSave={(note, remindAt) => void saveNoteAndReminder(note, remindAt)}
       />
 
       <Toast message={toast} />

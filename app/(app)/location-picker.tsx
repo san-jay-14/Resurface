@@ -6,7 +6,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   ScrollView,
@@ -16,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { appAlert } from "@/providers/AlertProvider";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -162,7 +162,7 @@ export default function LocationPickerScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Location denied", "Please enable location access in Settings.");
+        appAlert("Location denied", "Please enable location access in Settings.");
         return;
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
@@ -188,7 +188,7 @@ export default function LocationPickerScreen() {
       await refreshProfile();
       router.back();
     } catch {
-      Alert.alert("Couldn't detect", "Try selecting your city manually.");
+      appAlert("Couldn't detect", "Try selecting your city manually.");
     } finally {
       setDetecting(false);
     }

@@ -219,3 +219,61 @@ export async function fetchPlacesMapSaves(userId: string, category: SaveCategory
 
   return { mapped, unmappedCount };
 }
+
+type RawCollectionMapRow = {
+  saves: {
+    id: string;
+    caption: string | null;
+    note: string | null;
+    thumbnail_url: string | null;
+    acted_on: boolean;
+    created_at: string;
+    source_url: string | null;
+    save_locations: {
+      place_name: string | null;
+      lat: number | null;
+      lng: number | null;
+      city: string | null;
+      google_place_id: string | null;
+    } | null;
+  } | null;
+};
+
+/** Fetches a custom board's saves that have location data, for boards with
+ *  `requires_location` enabled — same shape as `fetchPlacesMapSaves`, scoped
+ *  to a collection instead of a category. */
+export async function fetchCollectionMapSaves(collectionId: string): Promise<{
+  mapped: PlaceSave[];
+  unmappedCount: number;
+}> {
+  const { data } = await supabase
+    .from("collection_saves")
+    .select(
+      "saves(id, caption, note, thumbnail_url, acted_on, created_at, source_url, save_locations(place_name, lat, lng, city, google_place_id))",
+    )
+    .eq("collection_id", collectionId);
+
+  const rows = ((data ?? []) as unknown as RawCollectionMapRow[])
+    .map((r) => r.saves)
+    .filter((s): s is NonNullable<typeof s> => s !== null);
+
+  const mapped: PlaceSave[] = rows
+    .filter((row) => row.save_locations?.lat != null && row.save_locations?.lng != null)
+    .map((row) => ({
+      id: row.id,
+      caption: row.caption ?? null,
+      note: row.note ?? null,
+      thumbnail_url: row.thumbnail_url ?? null,
+      acted_on: row.acted_on,
+      created_at: row.created_at,
+      source_url: row.source_url ?? null,
+      location_name: row.save_locations!.place_name ?? "Unnamed place",
+      location_city: row.save_locations!.city ?? null,
+      lat: row.save_locations!.lat!,
+      lng: row.save_locations!.lng!,
+      google_place_id: row.save_locations!.google_place_id ?? null,
+    }));
+
+  const unmappedCount = Math.max(0, rows.length - mapped.length);
+  return { mapped, unmappedCount };
+}

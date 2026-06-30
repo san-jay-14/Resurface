@@ -4,7 +4,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -16,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CATEGORY_EMOJI, CATEGORY_LABEL, getSaveTitle } from "@/components/SaveCard";
 import type { Save, SaveCategory } from "@/lib/database.types";
+import { appAlert } from "@/providers/AlertProvider";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -154,7 +154,7 @@ export default function MoveBoardScreen() {
       .from("collections").insert({ user_id: session.user.id, name }).select().single();
     setCreateLoading(false);
     if (error) {
-      Alert.alert("Error", error.message.includes("unique")
+      appAlert("Error", error.message.includes("unique")
         ? "A board with that name already exists." : error.message);
       return;
     }

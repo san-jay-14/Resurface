@@ -6,7 +6,6 @@ import { Component, useCallback, useEffect, useMemo, useRef, useState } from "re
 import type { ReactNode } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   Image,
@@ -21,23 +20,21 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { appAlert } from "@/providers/AlertProvider";
 import {
   BoardDetailCard,
   CategoryIcon,
   CATEGORY_LABEL,
   getSaveTitle,
+  SaveListRow,
 } from "@/components/SaveCard";
-import { InspoCollageHeader } from "@/components/category/InspoCollageHeader";
-import { RecipePromptHeader } from "@/components/category/RecipePromptHeader";
-import { RecentSavesSlideshow } from "@/components/category/RecentSavesSlideshow";
-import { WishlistStrip } from "@/components/category/WishlistStrip";
+import { InviteSheet } from "@/components/InviteSheet";
 import { PlacesMap, type PlacesMapHandle } from "@/components/PlacesMap";
-import type { PlaceSave, Save, SaveCategory, UserSubCategory } from "@/lib/database.types";
+import { getOrCreateCategoryShareCollection } from "@/lib/boardSharing";
+import type { Collection, PlaceSave, Save, SaveCategory, UserSubCategory } from "@/lib/database.types";
 import { fetchPlacesMapSaves } from "@/lib/saves";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
-
-const CATEGORY_HEADERS = true; // set false to hide all four headers
 
 const NEAR_YOU_RADIUS_KM = 30;
 
@@ -101,7 +98,7 @@ function CreateSubCategoryModal({
       .select()
       .single();
     setLoading(false);
-    if (error) { Alert.alert("Error", error.message); return; }
+    if (error) { appAlert("Error", error.message); return; }
     setName("");
     setEmoji("📁");
     onCreated(data as UserSubCategory);
@@ -174,39 +171,6 @@ function CreateSubCategoryModal({
 }
 
 // ---------------------------------------------------------------------------
-// Save row (list item used inside the bottom sheet)
-// ---------------------------------------------------------------------------
-function SaveRow({ save, onPress }: { save: Save; onPress: () => void }) {
-  const title = getSaveTitle(save);
-  return (
-    <Pressable
-      onPress={onPress}
-      style={{
-        flexDirection: "row", alignItems: "center", gap: 12,
-        paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F5F5F5",
-      }}
-    >
-      <View style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", backgroundColor: "#F5F5F5" }}>
-        {save.thumbnail_url
-          ? <Image source={{ uri: save.thumbnail_url }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
-          : <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-              <CategoryIcon category={save.category} size={22} />
-            </View>
-        }
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 14, fontWeight: "500", color: "#1A1A1A" }} numberOfLines={1}>{title}</Text>
-        <Text style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
-          {save.acted_on ? "✓ Done" : CATEGORY_LABEL[save.category]}
-          {save.is_favorite ? " · ★" : ""}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={16} color="#C0C0C0" />
-    </Pressable>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Main category screen
 // ---------------------------------------------------------------------------
 type FilterType = "all" | "favorites" | "done" | "undone" | "near";
@@ -234,6 +198,9 @@ export default function CategoryBoard() {
   const [activeSubCat, setActiveSubCat] = useState<string | null>(null);
   const [createVisible, setCreateVisible] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [shareVisible, setShareVisible] = useState(false);
+  const [sharedCollection, setSharedCollection] = useState<Collection | null>(null);
+  const [sharing, setSharing] = useState(false);
 
   // Bottom sheet animation
   const sheetY = useRef(new Animated.Value(SNAP_HALF)).current;
@@ -382,6 +349,7 @@ export default function CategoryBoard() {
   }, [saves, activeSubCat, searchQuery, activeFilter, nearSaveIds]);
 
   const label = CATEGORY_LABEL[category as SaveCategory] ?? String(category);
+  const isMapped = category === "places" || category === "fashion";
 
   const FILTER_PILLS: { value: FilterType; label: string }[] = [
     { value: "all",       label: "All" },
@@ -391,394 +359,416 @@ export default function CategoryBoard() {
     { value: "undone",    label: "Pending" },
   ];
 
-  return (
-    <View style={{ flex: 1, backgroundColor: "#F5F5F5" }}>
-      <StatusBar style="dark" />
+  const handleShare = async () => {
+    if (!session) return;
+    setSharing(true);
+    try {
+      const col = await getOrCreateCategoryShareCollection(session.user.id, category as SaveCategory, label);
+      setSharedCollection(col);
+      setShareVisible(true);
+    } catch (err) {
+      appAlert("Couldn't share", err instanceof Error ? err.message : "Try again.");
+    } finally {
+      setSharing(false);
+    }
+  };
 
-      {/* ── Map layer (full screen, sits behind the sheet) ── */}
-      <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}>
-        {(category === "places" || category === "fashion") ? (
-          <MapErrorBoundary>
-            <PlacesMap
-              ref={placesMapRef}
-              saves={mapSaves}
-              unmappedCount={unmappedCount}
-              loading={mapLoading}
-              nearSaveIds={nearSaveIds}
-              cityCenter={cityCenter}
-              onPinPress={() => {}}
-              onAddLocationPress={() => {}}
-            />
-          </MapErrorBoundary>
-        ) : (
-          <View style={{ flex: 1, backgroundColor:
-            category === "recipes" ? "#FFFFFF" :
-            category === "inspo"   ? "#09060F" :
-            category === "watch_learn" ? "#06060A" :
-            category === "shopping"    ? "#F7F5F1" :
-            "#F2F0F8"
-          }}>
-            {CATEGORY_HEADERS ? (
-              <>
-                {/* Full-bleed backgrounds */}
-                {category === "inspo" && (
-                  <InspoCollageHeader saves={saves} />
-                )}
-                {category === "watch_learn" && (
-                  <RecentSavesSlideshow
-                    category="watch_learn"
-                    saves={saves.slice(0, 10)}
-                    onPressSave={(id) => router.push({ pathname: "/(app)/save/[id]", params: { id } } as never)}
-                    emptyState={{ emoji: "🎬", headline: "Nothing queued up yet", subtext: "Share a YouTube video, documentary, or tutorial to build your watchlist" }}
-                    fullBleed
-                    insetTop={insets.top}
-                  />
-                )}
-
-              <View style={{ paddingTop: insets.top + 60 }}>
-                {category === "recipes" && (
-                  <RecipePromptHeader saveCount={saves.length} />
-                )}
-                {category === "shopping" && (
-                  <WishlistStrip
-                    saves={saves.slice(0, 8)}
-                    onPressSave={(id) => router.push({ pathname: "/(app)/save/[id]", params: { id } } as never)}
-                  />
-                )}
-                {(category !== "recipes" && category !== "inspo" && category !== "watch_learn" && category !== "shopping") && (
-                  <View style={{ alignItems: "center", justifyContent: "center", paddingTop: 32 }}>
-                    <CategoryIcon category={category as SaveCategory} size={48} />
-                  </View>
-                )}
-              </View>
-              </>
-            ) : (
-              <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                <CategoryIcon category={category as SaveCategory} size={48} />
-              </View>
-            )}
-          </View>
-        )}
-      </View>
-
-      {/* ── Back button (floats above map) ── */}
-      <View style={{
-        position: "absolute", top: insets.top + 8, left: 16, zIndex: 20,
-      }}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          style={{
-            width: 38, height: 38, borderRadius: 19,
-            backgroundColor: "rgba(255,255,255,0.9)",
-            alignItems: "center", justifyContent: "center",
-            shadowColor: "#000", shadowOpacity: 0.1, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4,
-            elevation: 4,
-          }}
-        >
-          <Ionicons name="chevron-back" size={22} color="#1A1A1A" />
-        </Pressable>
-      </View>
-
-      {/* ── Swipeable bottom sheet ── */}
-      <Animated.View
-        style={{
-          position: "absolute",
-          top: sheetY,
-          left: 0, right: 0,
-          height: SCREEN_H,
-          backgroundColor: "#FFFFFF",
-          borderTopLeftRadius: 24, borderTopRightRadius: 24,
-          shadowColor: "#000", shadowOpacity: 0.12,
-          shadowOffset: { width: 0, height: -4 }, shadowRadius: 16,
-          elevation: 20,
-        }}
-      >
-        {/* Drag handle */}
-        <View {...panResponder.panHandlers} style={{ paddingTop: 14, paddingBottom: 8, alignItems: "center" }}>
-          <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E5E5" }} />
-        </View>
-
-        {/* Sheet header: category title + count + view toggle */}
+  // Shared between the mapped (places/fashion) and simplified screens —
+  // search, filters, sub-categories, and the save list itself.
+  const bodyContent = (
+    <>
+      {/* Search bar */}
+      <View style={{ paddingHorizontal: 16, paddingBottom: 10 }}>
         <View style={{
-          flexDirection: "row", alignItems: "center",
-          paddingHorizontal: 16, paddingBottom: 12,
+          flexDirection: "row", alignItems: "center", gap: 8,
+          backgroundColor: "#F5F5F5", borderRadius: 12,
+          paddingHorizontal: 12, paddingVertical: 10,
         }}>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <CategoryIcon category={category as SaveCategory} size={24} />
-              <Text style={{ fontSize: 22, fontWeight: "800", color: "#1A1A1A", letterSpacing: -0.5 }}>
-                {label}
+          <Ionicons name="search-outline" size={16} color="#888" />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder={`Search ${label.toLowerCase()}…`}
+            placeholderTextColor="#888"
+            style={{ flex: 1, fontSize: 14, color: "#1A1A1A" }}
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
+              <Ionicons name="close-circle" size={16} color="#888" />
+            </Pressable>
+          )}
+        </View>
+      </View>
+
+      {/* Filter pills */}
+      <ScrollView
+        horizontal showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: 12 }}
+        style={{ flexGrow: 0 }}
+      >
+        {FILTER_PILLS.map((pill) => {
+          const active = activeFilter === pill.value;
+          return (
+            <Pressable
+              key={pill.value}
+              onPress={() => setActiveFilter(pill.value)}
+              style={{
+                paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+                backgroundColor: active ? "#9013BB" : "#F5F5F5",
+              }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: active ? "700" : "400", color: active ? "#fff" : "#888" }}>
+                {pill.label}
               </Text>
-            </View>
-            <Text style={{ fontSize: 12, color: "#888", marginTop: 2 }}>
-              {saves.length} {saves.length === 1 ? "save" : "saves"}
-            </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      {/* Scrollable content */}
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); void fetchSaves(true); }}
+            tintColor="#9013BB"
+          />
+        }
+      >
+        {/* Sub-categories grid */}
+        <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <Text style={{ fontSize: 13, fontWeight: "700", color: "#1A1A1A" }}>Sub-categories</Text>
+            <Pressable onPress={() => setCreateVisible(true)} hitSlop={8}>
+              <Text style={{ fontSize: 13, color: "#9013BB", fontWeight: "600" }}>+ New</Text>
+            </Pressable>
           </View>
-          <Pressable
-            onPress={() => setViewMode((m) => m === "list" ? "grid" : "list")}
-            style={{
-              width: 36, height: 36, borderRadius: 10,
-              backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center",
-            }}
-          >
-            <Ionicons name={viewMode === "list" ? "grid-outline" : "list-outline"} size={18} color="#1A1A1A" />
-          </Pressable>
-        </View>
 
-        {/* Search bar */}
-        <View style={{ paddingHorizontal: 16, paddingBottom: 10 }}>
-          <View style={{
-            flexDirection: "row", alignItems: "center", gap: 8,
-            backgroundColor: "#F5F5F5", borderRadius: 12,
-            paddingHorizontal: 12, paddingVertical: 10,
-          }}>
-            <Ionicons name="search-outline" size={16} color="#888" />
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder={`Search ${label.toLowerCase()}…`}
-              placeholderTextColor="#888"
-              style={{ flex: 1, fontSize: 14, color: "#1A1A1A" }}
-            />
-            {searchQuery.length > 0 && (
-              <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
-                <Ionicons name="close-circle" size={16} color="#888" />
-              </Pressable>
-            )}
-          </View>
-        </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {/* "All" pill */}
+            <Pressable
+              onPress={() => setActiveSubCat(null)}
+              style={{
+                paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20,
+                backgroundColor: activeSubCat === null ? "#F0E8F7" : "#F5F5F5",
+                borderWidth: activeSubCat === null ? 1.5 : 0, borderColor: "#9013BB",
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: "700", color: activeSubCat === null ? "#9013BB" : "#888" }}>
+                All
+              </Text>
+            </Pressable>
 
-        {/* Filter pills */}
-        <ScrollView
-          horizontal showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: 12 }}
-          style={{ flexGrow: 0 }}
-        >
-          {FILTER_PILLS.map((pill) => {
-            const active = activeFilter === pill.value;
-            return (
-              <Pressable
-                key={pill.value}
-                onPress={() => setActiveFilter(pill.value)}
-                style={{
-                  paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-                  backgroundColor: active ? "#9013BB" : "#F5F5F5",
-                }}
-              >
-                <Text style={{ fontSize: 13, fontWeight: active ? "700" : "400", color: active ? "#fff" : "#888" }}>
-                  {pill.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        {/* Scrollable content */}
-        <ScrollView
-          style={{ flex: 1 }}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 120 }}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); void fetchSaves(true); }}
-              tintColor="#9013BB"
-            />
-          }
-        >
-          {/* Sub-categories grid */}
-          <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <Text style={{ fontSize: 13, fontWeight: "700", color: "#1A1A1A" }}>Sub-categories</Text>
-              <Pressable onPress={() => setCreateVisible(true)} hitSlop={8}>
-                <Text style={{ fontSize: 13, color: "#9013BB", fontWeight: "600" }}>+ New</Text>
-              </Pressable>
-            </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {/* "All" pill */}
-              <Pressable
-                onPress={() => setActiveSubCat(null)}
-                style={{
-                  paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20,
-                  backgroundColor: activeSubCat === null ? "#F0E8F7" : "#F5F5F5",
-                  borderWidth: activeSubCat === null ? 1.5 : 0, borderColor: "#9013BB",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ fontSize: 13, fontWeight: "700", color: activeSubCat === null ? "#9013BB" : "#888" }}>
-                  All
-                </Text>
-              </Pressable>
-
-              {subCategories.map((sub) => {
-                const active = activeSubCat === sub.id;
-                const count = saves.filter((s) => s.sub_category_id === sub.id).length;
-                return (
-                  <Pressable
-                    key={sub.id}
-                    onLongPress={() => {
-                      Alert.alert(sub.name, "Delete this sub-category?", [
-                        { text: "Cancel", style: "cancel" },
-                        {
-                          text: "Delete", style: "destructive",
-                          onPress: async () => {
-                            await supabase.from("user_sub_categories").delete().eq("id", sub.id);
-                            setSubCategories((prev) => prev.filter((s) => s.id !== sub.id));
-                            if (activeSubCat === sub.id) setActiveSubCat(null);
-                          },
-                        },
-                      ]);
-                    }}
-                    onPress={() => setActiveSubCat(active ? null : sub.id)}
-                    style={{
-                      paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20,
-                      backgroundColor: active ? "#F0E8F7" : "#F5F5F5",
-                      borderWidth: active ? 1.5 : 0, borderColor: "#9013BB",
-                      flexDirection: "row", alignItems: "center", gap: 6,
-                    }}
-                  >
-                    <Text style={{ fontSize: 14 }}>{sub.emoji}</Text>
-                    <Text style={{ fontSize: 13, fontWeight: active ? "700" : "400", color: active ? "#9013BB" : "#888" }}>
-                      {sub.name}
-                    </Text>
-                    {count > 0 && (
-                      <View style={{
-                        backgroundColor: active ? "#9013BB" : "#E5E5E5",
-                        borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1,
-                      }}>
-                        <Text style={{ fontSize: 10, color: active ? "#fff" : "#888", fontWeight: "700" }}>
-                          {count}
-                        </Text>
-                      </View>
-                    )}
-                  </Pressable>
-                );
-              })}
-
-              {subCategories.length === 0 && (
+            {subCategories.map((sub) => {
+              const active = activeSubCat === sub.id;
+              const count = saves.filter((s) => s.sub_category_id === sub.id).length;
+              return (
                 <Pressable
-                  onPress={() => setCreateVisible(true)}
+                  key={sub.id}
+                  onLongPress={() => {
+                    appAlert(sub.name, "Delete this sub-category?", [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Delete", style: "destructive",
+                        onPress: async () => {
+                          await supabase.from("user_sub_categories").delete().eq("id", sub.id);
+                          setSubCategories((prev) => prev.filter((s) => s.id !== sub.id));
+                          if (activeSubCat === sub.id) setActiveSubCat(null);
+                        },
+                      },
+                    ]);
+                  }}
+                  onPress={() => setActiveSubCat(active ? null : sub.id)}
                   style={{
                     paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20,
-                    backgroundColor: "#F5F5F5", borderWidth: 1, borderColor: "#E5E5E5",
-                    borderStyle: "dashed",
+                    backgroundColor: active ? "#F0E8F7" : "#F5F5F5",
+                    borderWidth: active ? 1.5 : 0, borderColor: "#9013BB",
+                    flexDirection: "row", alignItems: "center", gap: 6,
                   }}
                 >
-                  <Text style={{ fontSize: 13, color: "#888" }}>Create your first…</Text>
+                  <Text style={{ fontSize: 14 }}>{sub.emoji}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: active ? "700" : "400", color: active ? "#9013BB" : "#888" }}>
+                    {sub.name}
+                  </Text>
+                  {count > 0 && (
+                    <View style={{
+                      backgroundColor: active ? "#9013BB" : "#E5E5E5",
+                      borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1,
+                    }}>
+                      <Text style={{ fontSize: 10, color: active ? "#fff" : "#888", fontWeight: "700" }}>
+                        {count}
+                      </Text>
+                    </View>
+                  )}
                 </Pressable>
-              )}
+              );
+            })}
+
+            {subCategories.length === 0 && (
+              <Pressable
+                onPress={() => setCreateVisible(true)}
+                style={{
+                  paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20,
+                  backgroundColor: "#F5F5F5", borderWidth: 1, borderColor: "#E5E5E5",
+                  borderStyle: "dashed",
+                }}
+              >
+                <Text style={{ fontSize: 13, color: "#888" }}>Create your first…</Text>
+              </Pressable>
+            )}
+          </ScrollView>
+        </View>
+
+        {/* Saves list / grid — grid is only reachable on mapped (places/fashion)
+            screens via the view toggle; everything else stays single-column. */}
+        {loading ? (
+          <View style={{ paddingVertical: 40, alignItems: "center" }}>
+            <ActivityIndicator color="#9013BB" size="large" />
+          </View>
+        ) : displayedSaves.length === 0 ? (
+          <View style={{ paddingVertical: 40, alignItems: "center", paddingHorizontal: 40 }}>
+            <CategoryIcon category={category as SaveCategory} size={36} />
+            <Text style={{ color: "#1A1A1A", fontSize: 15, fontWeight: "600", textAlign: "center", marginTop: 14 }}>
+              {searchQuery || activeSubCat || activeFilter !== "all"
+                ? "No saves match these filters"
+                : `No ${label.toLowerCase()} saves yet`}
+            </Text>
+            <Text style={{ color: "#888", fontSize: 13, textAlign: "center", lineHeight: 18, marginTop: 6 }}>
+              Share content into Dibs and it'll be categorised here automatically.
+            </Text>
+          </View>
+        ) : isMapped && viewMode === "grid" ? (
+          <View style={{ paddingHorizontal: 8 }}>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <View style={{ flex: 1, gap: 8 }}>
+                {displayedSaves.filter((_, i) => i % 2 === 0).map((save) => (
+                  <BoardDetailCard
+                    key={save.id}
+                    save={save}
+                    onPress={() => router.push({ pathname: "/(app)/save/[id]", params: { id: save.id } } as never)}
+                    onFavorite={async () => {
+                      const next = !save.is_favorite;
+                      setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: next } : s));
+                      await supabase.from("saves").update({ is_favorite: next }).eq("id", save.id);
+                    }}
+                  />
+                ))}
+              </View>
+              <View style={{ flex: 1, gap: 8 }}>
+                {displayedSaves.filter((_, i) => i % 2 !== 0).map((save) => (
+                  <BoardDetailCard
+                    key={save.id}
+                    save={save}
+                    onPress={() => router.push({ pathname: "/(app)/save/[id]", params: { id: save.id } } as never)}
+                    onFavorite={async () => {
+                      const next = !save.is_favorite;
+                      setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: next } : s));
+                      await supabase.from("saves").update({ is_favorite: next }).eq("id", save.id);
+                    }}
+                  />
+                ))}
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={{ paddingHorizontal: 16 }}>
+            {displayedSaves.map((save) => (
+              <SaveListRow
+                key={save.id}
+                save={save}
+                onPress={() => router.push({ pathname: "/(app)/save/[id]", params: { id: save.id } } as never)}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* Near you section (places/fashion only) */}
+        {nearPlaces.length > 0 && (
+          <View style={{ marginTop: 24 }}>
+            <View style={{
+              paddingHorizontal: 16, paddingBottom: 12,
+              flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+            }}>
+              <Text style={{ fontSize: 15, fontWeight: "700", color: "#1A1A1A" }}>
+                📍 Near you
+              </Text>
+              <Text style={{ fontSize: 12, color: "#888" }}>Based on your location</Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+            >
+              {nearPlaces.map((place) => (
+                <Pressable
+                  key={place.id}
+                  onPress={() => router.push({ pathname: "/(app)/save/[id]", params: { id: place.id } } as never)}
+                  style={{ width: 130 }}
+                >
+                  <View style={{
+                    width: 130, height: 100, borderRadius: 14,
+                    overflow: "hidden", backgroundColor: "#F5F5F5", marginBottom: 6,
+                    borderWidth: 1.5, borderColor: "#3A0A57",
+                  }}>
+                    {place.thumbnail_url
+                      ? <Image source={{ uri: place.thumbnail_url }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                      : <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                          <CategoryIcon category={category as SaveCategory} size={30} />
+                        </View>
+                    }
+                  </View>
+                  <Text style={{ fontSize: 12, fontWeight: "500", color: "#1A1A1A" }} numberOfLines={2}>
+                    {place.location_name}
+                  </Text>
+                </Pressable>
+              ))}
             </ScrollView>
           </View>
+        )}
+      </ScrollView>
+    </>
+  );
 
-          {/* Saves list / grid */}
-          {loading ? (
-            <View style={{ paddingVertical: 40, alignItems: "center" }}>
-              <ActivityIndicator color="#9013BB" size="large" />
-            </View>
-          ) : displayedSaves.length === 0 ? (
-            <View style={{ paddingVertical: 40, alignItems: "center", paddingHorizontal: 40 }}>
-              <CategoryIcon category={category as SaveCategory} size={36} />
-              <Text style={{ color: "#1A1A1A", fontSize: 15, fontWeight: "600", textAlign: "center", marginTop: 14 }}>
-                {searchQuery || activeSubCat || activeFilter !== "all"
-                  ? "No saves match these filters"
-                  : `No ${label.toLowerCase()} saves yet`}
-              </Text>
-              <Text style={{ color: "#888", fontSize: 13, textAlign: "center", lineHeight: 18, marginTop: 6 }}>
-                Share content into Dibs and it'll be categorised here automatically.
-              </Text>
-            </View>
-          ) : viewMode === "grid" ? (
-            <View style={{ paddingHorizontal: 8 }}>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <View style={{ flex: 1, gap: 8 }}>
-                  {displayedSaves.filter((_, i) => i % 2 === 0).map((save) => (
-                    <BoardDetailCard
-                      key={save.id}
-                      save={save}
-                      onPress={() => router.push({ pathname: "/(app)/save/[id]", params: { id: save.id } } as never)}
-                      onFavorite={async () => {
-                        const next = !save.is_favorite;
-                        setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: next } : s));
-                        await supabase.from("saves").update({ is_favorite: next }).eq("id", save.id);
-                      }}
-                    />
-                  ))}
-                </View>
-                <View style={{ flex: 1, gap: 8 }}>
-                  {displayedSaves.filter((_, i) => i % 2 !== 0).map((save) => (
-                    <BoardDetailCard
-                      key={save.id}
-                      save={save}
-                      onPress={() => router.push({ pathname: "/(app)/save/[id]", params: { id: save.id } } as never)}
-                      onFavorite={async () => {
-                        const next = !save.is_favorite;
-                        setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: next } : s));
-                        await supabase.from("saves").update({ is_favorite: next }).eq("id", save.id);
-                      }}
-                    />
-                  ))}
-                </View>
-              </View>
-            </View>
-          ) : (
-            <View style={{ paddingHorizontal: 16 }}>
-              {displayedSaves.map((save) => (
-                <SaveRow
-                  key={save.id}
-                  save={save}
-                  onPress={() => router.push({ pathname: "/(app)/save/[id]", params: { id: save.id } } as never)}
-                />
-              ))}
-            </View>
-          )}
+  return (
+    <View style={{ flex: 1, backgroundColor: isMapped ? "#F5F5F5" : "#FFFFFF" }}>
+      <StatusBar style="dark" />
 
-          {/* Near you section */}
-          {nearPlaces.length > 0 && (
-            <View style={{ marginTop: 24 }}>
-              <View style={{
-                paddingHorizontal: 16, paddingBottom: 12,
-                flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-              }}>
-                <Text style={{ fontSize: 15, fontWeight: "700", color: "#1A1A1A" }}>
-                  📍 Near you
+      {isMapped ? (
+        <>
+          {/* ── Map layer (full screen, sits behind the sheet) ── */}
+          <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}>
+            <MapErrorBoundary>
+              <PlacesMap
+                ref={placesMapRef}
+                saves={mapSaves}
+                unmappedCount={unmappedCount}
+                loading={mapLoading}
+                nearSaveIds={nearSaveIds}
+                cityCenter={cityCenter}
+                onPinPress={() => {}}
+                onAddLocationPress={() => {}}
+              />
+            </MapErrorBoundary>
+          </View>
+
+          {/* ── Back button (floats above map) ── */}
+          <View style={{ position: "absolute", top: insets.top + 8, left: 16, zIndex: 20 }}>
+            <Pressable
+              onPress={() => router.back()}
+              hitSlop={12}
+              style={{
+                width: 38, height: 38, borderRadius: 19,
+                backgroundColor: "rgba(255,255,255,0.9)",
+                alignItems: "center", justifyContent: "center",
+                shadowColor: "#000", shadowOpacity: 0.1, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4,
+                elevation: 4,
+              }}
+            >
+              <Ionicons name="chevron-back" size={22} color="#1A1A1A" />
+            </Pressable>
+          </View>
+
+          {/* ── Swipeable bottom sheet ── */}
+          <Animated.View
+            style={{
+              position: "absolute",
+              top: sheetY,
+              left: 0, right: 0,
+              height: SCREEN_H,
+              backgroundColor: "#FFFFFF",
+              borderTopLeftRadius: 24, borderTopRightRadius: 24,
+              shadowColor: "#000", shadowOpacity: 0.12,
+              shadowOffset: { width: 0, height: -4 }, shadowRadius: 16,
+              elevation: 20,
+            }}
+          >
+            {/* Drag handle */}
+            <View {...panResponder.panHandlers} style={{ paddingTop: 14, paddingBottom: 8, alignItems: "center" }}>
+              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E5E5" }} />
+            </View>
+
+            {/* Sheet header: category title + count + share + view toggle */}
+            <View style={{
+              flexDirection: "row", alignItems: "center", gap: 8,
+              paddingHorizontal: 16, paddingBottom: 12,
+            }}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <CategoryIcon category={category as SaveCategory} size={24} />
+                  <Text style={{ fontSize: 22, fontWeight: "800", color: "#1A1A1A", letterSpacing: -0.5 }}>
+                    {label}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 12, color: "#888", marginTop: 2 }}>
+                  {saves.length} {saves.length === 1 ? "save" : "saves"}
                 </Text>
-                <Text style={{ fontSize: 12, color: "#888" }}>Based on your location</Text>
               </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+              <Pressable
+                onPress={() => void handleShare()}
+                disabled={sharing}
+                style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center",
+                }}
               >
-                {nearPlaces.map((place) => (
-                  <Pressable
-                    key={place.id}
-                    onPress={() => router.push({ pathname: "/(app)/save/[id]", params: { id: place.id } } as never)}
-                    style={{ width: 130 }}
-                  >
-                    <View style={{
-                      width: 130, height: 100, borderRadius: 14,
-                      overflow: "hidden", backgroundColor: "#F5F5F5", marginBottom: 6,
-                      borderWidth: 1.5, borderColor: "#3A0A57",
-                    }}>
-                      {place.thumbnail_url
-                        ? <Image source={{ uri: place.thumbnail_url }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
-                        : <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                            <CategoryIcon category={category as SaveCategory} size={30} />
-                          </View>
-                      }
-                    </View>
-                    <Text style={{ fontSize: 12, fontWeight: "500", color: "#1A1A1A" }} numberOfLines={2}>
-                      {place.location_name}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
+                {sharing
+                  ? <ActivityIndicator size="small" color="#9013BB" />
+                  : <Ionicons name="share-outline" size={18} color="#1A1A1A" />
+                }
+              </Pressable>
+              <Pressable
+                onPress={() => setViewMode((m) => m === "list" ? "grid" : "list")}
+                style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <Ionicons name={viewMode === "list" ? "grid-outline" : "list-outline"} size={18} color="#1A1A1A" />
+              </Pressable>
             </View>
-          )}
-        </ScrollView>
-      </Animated.View>
+
+            {bodyContent}
+          </Animated.View>
+        </>
+      ) : (
+        <>
+          {/* ── Plain header (single full-screen layout, no banner) ── */}
+          <View style={{
+            paddingTop: insets.top + 10, paddingHorizontal: 16, paddingBottom: 12,
+            flexDirection: "row", alignItems: "center", gap: 12,
+            borderBottomWidth: 1, borderBottomColor: "#F0F0F0",
+          }}>
+            <Pressable onPress={() => router.back()} hitSlop={12}>
+              <Ionicons name="chevron-back" size={26} color="#1A1A1A" />
+            </Pressable>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <CategoryIcon category={category as SaveCategory} size={20} />
+                <Text style={{ fontSize: 18, fontWeight: "800", color: "#1A1A1A", letterSpacing: -0.3 }}>
+                  {label}
+                </Text>
+              </View>
+              <Text style={{ fontSize: 12, color: "#888", marginTop: 2 }}>
+                {saves.length} {saves.length === 1 ? "save" : "saves"}
+              </Text>
+            </View>
+            <Pressable onPress={() => void handleShare()} disabled={sharing} hitSlop={8}>
+              {sharing
+                ? <ActivityIndicator size="small" color="#9013BB" />
+                : <Ionicons name="share-outline" size={20} color="#1A1A1A" />
+              }
+            </Pressable>
+          </View>
+
+          <View style={{ flex: 1, paddingTop: 12 }}>
+            {bodyContent}
+          </View>
+        </>
+      )}
 
       {/* Sub-category creation modal */}
       <CreateSubCategoryModal
@@ -789,6 +779,13 @@ export default function CategoryBoard() {
         onCreated={(sub) => setSubCategories((prev) => [...prev, sub])}
       />
 
+      {sharedCollection && (
+        <InviteSheet
+          visible={shareVisible}
+          board={sharedCollection}
+          onClose={() => setShareVisible(false)}
+        />
+      )}
     </View>
   );
 }

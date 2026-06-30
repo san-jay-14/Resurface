@@ -12,6 +12,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { detectAndUpdateCity } from "@/lib/location";
 import { supabase } from "@/lib/supabase";
+import { AlertProvider } from "@/providers/AlertProvider";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
 
 function Loading() {
@@ -162,12 +163,14 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <ShareIntentProvider>
-          <StatusBar style="dark" />
-          <RootNavigator />
-        </ShareIntentProvider>
-      </AuthProvider>
+      <AlertProvider>
+        <AuthProvider>
+          <ShareIntentProvider>
+            <StatusBar style="dark" />
+            <RootNavigator />
+          </ShareIntentProvider>
+        </AuthProvider>
+      </AlertProvider>
     </SafeAreaProvider>
   );
 }

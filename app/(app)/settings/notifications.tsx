@@ -3,7 +3,6 @@ import { StatusBar } from "expo-status-bar";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
-  Alert,
   Linking,
   Platform,
   Pressable,
@@ -18,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NotificationPrefs } from "@/lib/database.types";
 import { requestNotificationPermission } from "@/lib/notifications";
 import { updateProfile } from "@/lib/profile";
+import { appAlert } from "@/providers/AlertProvider";
 import { useAuth } from "@/providers/AuthProvider";
 
 const DEFAULT_PREFS: NotificationPrefs = {
@@ -121,7 +121,7 @@ export default function NotificationPreferencesScreen() {
     const granted = await requestNotificationPermission();
     setPermissionGranted(granted);
     if (!granted) {
-      Alert.alert(
+      appAlert(
         "Notifications are off",
         "Enable them in your device Settings to get resurfaced saves.",
         [

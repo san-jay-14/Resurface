@@ -2,7 +2,6 @@ import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Modal,
   Pressable,
@@ -15,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CategoryIcon, CATEGORY_COLORS, CATEGORY_LABEL } from "@/components/SaveCard";
 import type { Collection, SaveCategory } from "@/lib/database.types";
+import { appAlert } from "@/providers/AlertProvider";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -53,7 +53,7 @@ function CreateBoardModal({
       .insert({ user_id: userId, name: trimmed });
     setLoading(false);
     if (error) {
-      Alert.alert("Error", error.message.includes("unique")
+      appAlert("Error", error.message.includes("unique")
         ? `A board called "${trimmed}" already exists.`
         : error.message);
       return;

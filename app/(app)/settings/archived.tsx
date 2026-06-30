@@ -4,7 +4,6 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -15,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { ArchivedSave } from "@/lib/database.types";
 import { CategoryIcon, CATEGORY_EMOJI, CATEGORY_LABEL } from "@/components/SaveCard";
+import { appAlert } from "@/providers/AlertProvider";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -58,7 +58,7 @@ export default function ArchivedSavesScreen() {
       .eq("id", archive.original_save_id);
 
     if (error) {
-      Alert.alert("Error", "Couldn't restore this save.");
+      appAlert("Error", "Couldn't restore this save.");
       return;
     }
     await supabase.from("archived_saves").delete().eq("id", archive.id);
@@ -66,7 +66,7 @@ export default function ArchivedSavesScreen() {
   };
 
   const handleDelete = (archive: ArchivedSave) => {
-    Alert.alert(
+    appAlert(
       "Delete permanently?",
       "This save will be gone for good.",
       [

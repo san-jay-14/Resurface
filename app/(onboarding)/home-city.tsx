@@ -1,9 +1,10 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, Text, TextInput } from "react-native";
+import { Text, TextInput } from "react-native";
 
 import { DarkOnboardingScaffold } from "@/components/DarkOnboardingScaffold";
 import { updateProfile } from "@/lib/profile";
+import { appAlert } from "@/providers/AlertProvider";
 import { useAuth } from "@/providers/AuthProvider";
 
 export default function HomeCityStep() {
@@ -22,7 +23,7 @@ export default function HomeCityStep() {
       await refreshProfile();
       router.push("/(onboarding)/notifications");
     } catch (err) {
-      Alert.alert("Hmm", err instanceof Error ? err.message : "Couldn't save that.");
+      appAlert("Hmm", err instanceof Error ? err.message : "Couldn't save that.");
     } finally {
       setSaving(false);
     }

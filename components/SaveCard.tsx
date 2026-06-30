@@ -1,4 +1,6 @@
+import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, Image, Pressable, Text, View } from "react-native";
+import type { ReactNode } from "react";
 
 // ---------------------------------------------------------------------------
 // PinCard — Pinterest-style card used in the home masonry grid
@@ -212,6 +214,43 @@ export function getSaveTitle(save: Save): string {
     catch { /* fall through */ }
   }
   return "Saved item";
+}
+
+// ---------------------------------------------------------------------------
+// SaveListRow — single full-width row, used by the simplified single-column
+// category screens (recipes/inspo/watch/shopping) and custom boards.
+// ---------------------------------------------------------------------------
+export function SaveListRow({
+  save, onPress, rightSlot,
+}: { save: Save; onPress: () => void; rightSlot?: ReactNode }) {
+  const title = getSaveTitle(save);
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        flexDirection: "row", alignItems: "center", gap: 12,
+        paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F5F5F5",
+      }}
+    >
+      <View style={{ width: 56, height: 56, borderRadius: 12, overflow: "hidden", backgroundColor: "#F5F5F5" }}>
+        {save.thumbnail_url ? (
+          <Image source={{ uri: save.thumbnail_url }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+        ) : (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+            <CategoryIcon category={save.category} size={24} />
+          </View>
+        )}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 14, fontWeight: "500", color: "#1A1A1A" }} numberOfLines={2}>{title}</Text>
+        <Text style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
+          {save.acted_on ? `✓ ${ACTED_ON_VERB[save.category] ?? "Done"}` : CATEGORY_LABEL[save.category]}
+          {save.is_favorite ? " · ★" : ""}
+        </Text>
+      </View>
+      {rightSlot ?? <Ionicons name="chevron-forward" size={16} color="#C0C0C0" />}
+    </Pressable>
+  );
 }
 
 interface SaveCardProps {

@@ -1,9 +1,10 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Alert, Animated, Text, View } from "react-native";
+import { Animated, Text, View } from "react-native";
 
 import { DarkOnboardingScaffold } from "@/components/DarkOnboardingScaffold";
 import { updateProfile } from "@/lib/profile";
+import { appAlert } from "@/providers/AlertProvider";
 import { useAuth } from "@/providers/AuthProvider";
 
 const STEPS = [
@@ -88,8 +89,11 @@ export default function ShareGuideStep() {
       setFinishing(true);
       await updateProfile(session.user.id, { onboarding_completed: true });
       await refreshProfile();
+      // Don't rely solely on the root layout's routing-gate effect picking
+      // up the profile change — navigate explicitly so this never stalls.
+      router.replace("/(app)" as never);
     } catch (err) {
-      Alert.alert("Hmm", err instanceof Error ? err.message : "Couldn't finish setup.");
+      appAlert("Hmm", err instanceof Error ? err.message : "Couldn't finish setup.");
       setFinishing(false);
     }
   }
@@ -101,7 +105,7 @@ export default function ShareGuideStep() {
       title="saving takes one tap."
       titleAccent="one tap"
       subtitle="Dibs lives behind the share button in every app. No copy-pasting, no typing URLs."
-      primaryLabel="call dibs →"
+      primaryLabel="start saving →"
       primaryLoading={finishing}
       onPrimary={finish}
     >

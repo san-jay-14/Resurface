@@ -655,6 +655,74 @@ async function runNewCityTrigger(
 }
 
 // ---------------------------------------------------------------------------
+// CUSTOM REMINDERS — user-set "remind me about this on X" dates (saves.remind_at)
+// ---------------------------------------------------------------------------
+
+/** Explicit user reminders skip the relevance/throttle/freshness guard
+ *  pipeline (that's for AI-suggested resurfacing) — the user already asked
+ *  for this one, on this date. Quiet hours still apply (checked at entry). */
+interface ReminderSaveRow {
+  id: string;
+  user_id: string;
+  title: string | null;
+  ai_description: string | null;
+  note: string | null;
+}
+
+async function runCustomReminderTrigger(
+  admin: SupabaseClient,
+): Promise<Record<string, unknown>> {
+  const { data: dueSaves } = await admin
+    .from("saves")
+    .select("id, user_id, title, ai_description, note")
+    .not("remind_at", "is", null)
+    .is("reminded_at", null)
+    .eq("archived", false)
+    .lte("remind_at", new Date().toISOString())
+    .limit(200);
+
+  const saves = (dueSaves as ReminderSaveRow[] | null) ?? [];
+  if (saves.length === 0) return { skipped: true, reason: "no_due_reminders" };
+
+  log("custom_reminder_trigger_running", { count: saves.length });
+
+  let sent = 0;
+
+  for (const save of saves) {
+    const { data: tokens } = await admin
+      .from("device_tokens")
+      .select("expo_push_token")
+      .eq("user_id", save.user_id);
+
+    const pushTokens = (tokens ?? []).map((t) => t.expo_push_token as string).filter(Boolean);
+    const label = save.title ?? save.ai_description ?? "your saved item";
+    const body = save.note
+      ? `You asked to be reminded: "${save.note}"`
+      : `You asked to be reminded about "${label}".`;
+
+    if (pushTokens.length > 0) {
+      const messages: ExpoPushMessage[] = pushTokens.map((token) => ({
+        to: token,
+        title: "Reminder from Dibs",
+        body,
+        data: { save_id: save.id, trigger_type: "custom_reminder" },
+        sound: "default",
+        priority: "high",
+      }));
+      await sendExpoPush(messages);
+      sent++;
+    }
+
+    // Mark handled regardless of token presence, so a token-less save
+    // doesn't get retried on every future run.
+    await admin.from("saves").update({ reminded_at: new Date().toISOString() }).eq("id", save.id);
+  }
+
+  log("custom_reminder_done", { evaluated: saves.length, sent });
+  return { evaluated: saves.length, sent };
+}
+
+// ---------------------------------------------------------------------------
 // ENTRY POINT
 // ---------------------------------------------------------------------------
 Deno.serve(async (req: Request) => {
@@ -683,13 +751,19 @@ Deno.serve(async (req: Request) => {
 
   log("timing_ok", { istHour: nowIST.getUTCHours() });
 
-  const [longWeekendResult, birthdayResult, newCityResult] = await Promise.all([
+  const [longWeekendResult, birthdayResult, newCityResult, customReminderResult] = await Promise.all([
     runLongWeekendTrigger(admin, nowIST),
     runBirthdayTrigger(admin, nowIST),
     runNewCityTrigger(admin),
+    runCustomReminderTrigger(admin),
   ]);
 
-  const summary = { long_weekend: longWeekendResult, birthday: birthdayResult, new_city: newCityResult };
+  const summary = {
+    long_weekend: longWeekendResult,
+    birthday: birthdayResult,
+    new_city: newCityResult,
+    custom_reminder: customReminderResult,
+  };
   log("resurface_check_complete", { summary });
 
   return Response.json({ ok: true, ...summary });

@@ -1,99 +1,47 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { Component, useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   RefreshControl,
   ScrollView,
-  Share,
   Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BoardDetailCard } from "@/components/SaveCard";
-import type { Collection, CollectionMember, CollectionSaveReaction, Save } from "@/lib/database.types";
+import { InviteSheet } from "@/components/InviteSheet";
+import { PlacesMap } from "@/components/PlacesMap";
+import { SaveListRow } from "@/components/SaveCard";
+import type { Collection, CollectionMember, CollectionSaveReaction, PlaceSave, Save } from "@/lib/database.types";
+import { shareCollection } from "@/lib/boardSharing";
+import { fetchCollectionMapSaves } from "@/lib/saves";
+import { appAlert } from "@/providers/AlertProvider";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
 type SortOption = "recent" | "oldest";
 
 // ---------------------------------------------------------------------------
-// Invite sheet (for shared boards)
+// Map error boundary (Mapbox native module may not be built in this client)
 // ---------------------------------------------------------------------------
-function InviteSheet({
-  visible,
-  board,
-  onClose,
-}: {
-  visible: boolean;
-  board: Collection;
-  onClose: () => void;
-}) {
-  const insets = useSafeAreaInsets();
-  const code = board.invite_code ?? "";
-  const link = `https://getdibs.app/join/${code}`;
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }} onPress={onClose} />
-      <View
-        style={{
-          backgroundColor: "#FFFFFF",
-          borderTopLeftRadius: 24, borderTopRightRadius: 24,
-          paddingHorizontal: 24, paddingTop: 24,
-          paddingBottom: Math.max(insets.bottom, 20) + 12,
-          alignItems: "center",
-        }}
-      >
-        <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: "#E5E5E5", marginBottom: 24 }} />
-        <Text style={{ color: "#1A1A1A", fontSize: 17, fontWeight: "700", marginBottom: 6 }}>
-          Share this board
-        </Text>
-        <Text style={{ color: "#888", fontSize: 13, marginBottom: 28 }}>
-          Anyone with this code can join your board.
-        </Text>
-
-        {/* Code display */}
-        <View
-          style={{
-            backgroundColor: "#F5F5F5", borderRadius: 16,
-            paddingHorizontal: 32, paddingVertical: 20,
-            marginBottom: 24, alignItems: "center",
-          }}
-        >
-          <Text style={{ color: "#9013BB", fontSize: 30, fontWeight: "800", letterSpacing: 6 }}>
-            {code}
-          </Text>
+class MapErrorBoundary extends Component<{ children: ReactNode }, { crashed: boolean }> {
+  state = { crashed: false };
+  static getDerivedStateFromError() { return { crashed: true }; }
+  render() {
+    if (this.state.crashed) {
+      return (
+        <View style={{ height: 200, backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ color: "#888", fontSize: 13 }}>Map unavailable</Text>
         </View>
-
-        <View style={{ flexDirection: "row", gap: 12, width: "100%" }}>
-          <Pressable
-            onPress={() => Share.share({ message: link })}
-            style={{
-              flex: 1, backgroundColor: "#F5F5F5",
-              borderRadius: 32, paddingVertical: 15, alignItems: "center",
-            }}
-          >
-            <Text style={{ color: "#1A1A1A", fontSize: 14, fontWeight: "600" }}>Copy Link</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => Share.share({ message: `Join my board "${board.name}" on Dibs! Code: ${code}` })}
-            style={{
-              flex: 1, backgroundColor: "#9013BB",
-              borderRadius: 32, paddingVertical: 15, alignItems: "center",
-            }}
-          >
-            <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>Share Code</Text>
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
-  );
+      );
+    }
+    return this.props.children;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -158,6 +106,8 @@ export default function BoardDetail() {
   const [sort, setSort] = useState<SortOption>("recent");
   const [sortVisible, setSortVisible] = useState(false);
   const [inviteVisible, setInviteVisible] = useState(false);
+  const [mapSaves, setMapSaves] = useState<PlaceSave[]>([]);
+  const [mapLoading, setMapLoading] = useState(false);
 
   const fetchAll = useCallback(async (quiet = false) => {
     if (!id || !session) return;
@@ -204,6 +154,24 @@ export default function BoardDetail() {
   useFocusEffect(useCallback(() => { void fetchAll(); }, [fetchAll]));
   useEffect(() => { void fetchAll(); }, [sort]);
 
+  // Location-marking boards get a map of their geo-tagged saves.
+  useEffect(() => {
+    if (!id || !board?.requires_location) { setMapSaves([]); return; }
+    void (async () => {
+      setMapLoading(true);
+      const { mapped } = await fetchCollectionMapSaves(id);
+      setMapSaves(mapped);
+      setMapLoading(false);
+    })();
+  }, [id, board?.requires_location, saves.length]);
+
+  const mapCenter = (() => {
+    if (mapSaves.length === 0) return null;
+    const lat = mapSaves.reduce((sum, s) => sum + s.lat, 0) / mapSaves.length;
+    const lng = mapSaves.reduce((sum, s) => sum + s.lng, 0) / mapSaves.length;
+    return { lat, lng };
+  })();
+
   const handleFavorite = async (save: Save) => {
     const next = !save.is_favorite;
     setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: next } : s));
@@ -234,26 +202,20 @@ export default function BoardDetail() {
       const saveReactions = [...reactions.filter((r) => r.save_id === saveId && r.id !== existing?.id), data as CollectionSaveReaction];
       const inCount = saveReactions.filter((r) => r.reaction === "in").length;
       if (inCount >= members.length && members.length >= 2) {
-        Alert.alert("Everyone's in! 🙌", "Time to make it happen?");
+        appAlert("Everyone's in! 🙌", "Time to make it happen?");
       }
     }
   };
 
   const generateInviteCode = async () => {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    const code = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-
-    await supabase
-      .from("collections")
-      .update({ is_shared: true, invite_code: code, owner_id: session?.user.id })
-      .eq("id", id);
-
-    setBoard((prev) => prev ? { ...prev, is_shared: true, invite_code: code } : prev);
+    if (!id || !session) return;
+    const updated = await shareCollection(id, session.user.id);
+    setBoard(updated);
     setInviteVisible(true);
   };
 
   const deleteBoard = () => {
-    Alert.alert(
+    appAlert(
       "Delete board",
       `Delete "${name}"? Saves won't be deleted.`,
       [
@@ -282,7 +244,7 @@ export default function BoardDetail() {
       ),
       { text: "Cancel", style: "cancel" as const },
     ];
-    Alert.alert(name ?? "Board", undefined, options);
+    appAlert(name ?? "Board", undefined, options);
   };
 
   const leaveBoard = async () => {
@@ -295,8 +257,6 @@ export default function BoardDetail() {
     router.back();
   };
 
-  const leftItems = saves.filter((_, i) => i % 2 === 0);
-  const rightItems = saves.filter((_, i) => i % 2 !== 0);
   const isShared = board?.is_shared;
 
   return (
@@ -392,7 +352,7 @@ export default function BoardDetail() {
         <ScrollView
           style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 8, paddingTop: 4, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: 100 }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -401,111 +361,80 @@ export default function BoardDetail() {
             />
           }
         >
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            {/* Left column */}
-            <View style={{ flex: 1, gap: 8 }}>
-              {leftItems.map((save) => {
-                const saveReactions = reactions.filter((r) => r.save_id === save.id);
-                const inCount = saveReactions.filter((r) => r.reaction === "in").length;
-                const myReaction = saveReactions.find((r) => r.user_id === session?.user.id);
-                const allIn = isShared && inCount >= members.length + 1 && members.length >= 1;
-
-                return (
-                  <View key={save.id}>
-                    <BoardDetailCard
-                      save={save}
-                      onPress={() =>
-                        router.push({ pathname: "/(app)/save/[id]", params: { id: save.id } } as never)
-                      }
-                      onFavorite={() => void handleFavorite(save)}
-                    />
-                    {isShared && (
-                      <View style={{ flexDirection: "row", gap: 6, paddingHorizontal: 4, paddingTop: 5, paddingBottom: 2 }}>
-                        <Pressable
-                          onPress={() => void handleReaction(save.id, "in")}
-                          style={{
-                            flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-                            gap: 4, backgroundColor: myReaction?.reaction === "in" ? "#22C55E22" : "#F5F5F5",
-                            borderRadius: 20, paddingVertical: 6,
-                            borderWidth: 1,
-                            borderColor: myReaction?.reaction === "in" ? "#22C55E" : "transparent",
-                          }}
-                        >
-                          <Text style={{ fontSize: 13 }}>{allIn ? "✅" : "👍"}</Text>
-                          <Text style={{ color: "#888", fontSize: 11 }}>
-                            {inCount > 0 ? `${inCount}` : "I'm in"}
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={() => void handleReaction(save.id, "pass")}
-                          style={{
-                            width: 36, alignItems: "center", justifyContent: "center",
-                            backgroundColor: myReaction?.reaction === "pass" ? "#EF444422" : "#F5F5F5",
-                            borderRadius: 20,
-                            borderWidth: 1,
-                            borderColor: myReaction?.reaction === "pass" ? "#EF4444" : "transparent",
-                          }}
-                        >
-                          <Text style={{ fontSize: 13 }}>✕</Text>
-                        </Pressable>
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
+          {/* Location-marking boards get a map preview of their geo-tagged saves */}
+          {board?.requires_location && (
+            <View style={{ height: 200, marginHorizontal: 16, marginBottom: 16, borderRadius: 16, overflow: "hidden" }}>
+              <MapErrorBoundary>
+                <PlacesMap
+                  saves={mapSaves}
+                  unmappedCount={Math.max(0, saves.length - mapSaves.length)}
+                  loading={mapLoading}
+                  cityCenter={mapCenter}
+                  onPinPress={() => {}}
+                  onAddLocationPress={() => {}}
+                />
+              </MapErrorBoundary>
             </View>
-            {/* Right column */}
-            <View style={{ flex: 1, gap: 8 }}>
-              {rightItems.map((save) => {
-                const saveReactions = reactions.filter((r) => r.save_id === save.id);
-                const inCount = saveReactions.filter((r) => r.reaction === "in").length;
-                const myReaction = saveReactions.find((r) => r.user_id === session?.user.id);
-                const allIn = isShared && inCount >= members.length + 1 && members.length >= 1;
+          )}
 
-                return (
-                  <View key={save.id}>
-                    <BoardDetailCard
-                      save={save}
-                      onPress={() =>
-                        router.push({ pathname: "/(app)/save/[id]", params: { id: save.id } } as never)
-                      }
-                      onFavorite={() => void handleFavorite(save)}
-                    />
-                    {isShared && (
-                      <View style={{ flexDirection: "row", gap: 6, paddingHorizontal: 4, paddingTop: 5, paddingBottom: 2 }}>
-                        <Pressable
-                          onPress={() => void handleReaction(save.id, "in")}
-                          style={{
-                            flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-                            gap: 4, backgroundColor: myReaction?.reaction === "in" ? "#22C55E22" : "#F5F5F5",
-                            borderRadius: 20, paddingVertical: 6,
-                            borderWidth: 1,
-                            borderColor: myReaction?.reaction === "in" ? "#22C55E" : "transparent",
-                          }}
-                        >
-                          <Text style={{ fontSize: 13 }}>{allIn ? "✅" : "👍"}</Text>
-                          <Text style={{ color: "#888", fontSize: 11 }}>
-                            {inCount > 0 ? `${inCount}` : "I'm in"}
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={() => void handleReaction(save.id, "pass")}
-                          style={{
-                            width: 36, alignItems: "center", justifyContent: "center",
-                            backgroundColor: myReaction?.reaction === "pass" ? "#EF444422" : "#F5F5F5",
-                            borderRadius: 20,
-                            borderWidth: 1,
-                            borderColor: myReaction?.reaction === "pass" ? "#EF4444" : "transparent",
-                          }}
-                        >
-                          <Text style={{ fontSize: 13 }}>✕</Text>
-                        </Pressable>
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
+          <View style={{ paddingHorizontal: 16 }}>
+            {saves.map((save) => {
+              const saveReactions = reactions.filter((r) => r.save_id === save.id);
+              const inCount = saveReactions.filter((r) => r.reaction === "in").length;
+              const myReaction = saveReactions.find((r) => r.user_id === session?.user.id);
+              const allIn = isShared && inCount >= members.length + 1 && members.length >= 1;
+
+              return (
+                <View key={save.id}>
+                  <SaveListRow
+                    save={save}
+                    onPress={() =>
+                      router.push({ pathname: "/(app)/save/[id]", params: { id: save.id } } as never)
+                    }
+                    rightSlot={
+                      <Pressable onPress={() => void handleFavorite(save)} hitSlop={8}>
+                        <Ionicons
+                          name={save.is_favorite ? "heart" : "heart-outline"}
+                          size={18}
+                          color={save.is_favorite ? "#D4537E" : "#C0C0C0"}
+                        />
+                      </Pressable>
+                    }
+                  />
+                  {isShared && (
+                    <View style={{ flexDirection: "row", gap: 6, paddingBottom: 10 }}>
+                      <Pressable
+                        onPress={() => void handleReaction(save.id, "in")}
+                        style={{
+                          flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+                          gap: 4, backgroundColor: myReaction?.reaction === "in" ? "#22C55E22" : "#F5F5F5",
+                          borderRadius: 20, paddingVertical: 6,
+                          borderWidth: 1,
+                          borderColor: myReaction?.reaction === "in" ? "#22C55E" : "transparent",
+                        }}
+                      >
+                        <Text style={{ fontSize: 13 }}>{allIn ? "✅" : "👍"}</Text>
+                        <Text style={{ color: "#888", fontSize: 11 }}>
+                          {inCount > 0 ? `${inCount}` : "I'm in"}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => void handleReaction(save.id, "pass")}
+                        style={{
+                          width: 36, alignItems: "center", justifyContent: "center",
+                          backgroundColor: myReaction?.reaction === "pass" ? "#EF444422" : "#F5F5F5",
+                          borderRadius: 20,
+                          borderWidth: 1,
+                          borderColor: myReaction?.reaction === "pass" ? "#EF4444" : "transparent",
+                        }}
+                      >
+                        <Text style={{ fontSize: 13 }}>✕</Text>
+                      </Pressable>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
           </View>
         </ScrollView>
       )}

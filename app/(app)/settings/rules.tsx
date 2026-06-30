@@ -4,7 +4,6 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -16,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { UserRule } from "@/lib/database.types";
+import { appAlert } from "@/providers/AlertProvider";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 import { env } from "@/lib/env";
@@ -60,7 +60,7 @@ function AddRuleSheet({
       const json = await res.json() as { ok: boolean; rule?: UserRule; error?: string; parsed_logic?: { action?: { set_category?: string } } };
 
       if (!json.ok || !json.rule) {
-        Alert.alert(
+        appAlert(
           "Couldn't parse that",
           json.error ?? "Dibs couldn't understand that rule. Try rephrasing it — e.g. 'Put anything from @username into Fashion'",
         );
@@ -80,7 +80,7 @@ function AddRuleSheet({
 
       onAdded();
     } catch {
-      Alert.alert("Couldn't connect", "Your rule wasn't saved — try again?");
+      appAlert("Couldn't connect", "Your rule wasn't saved — try again?");
     } finally {
       setLoading(false);
     }
@@ -229,7 +229,7 @@ export default function RulesScreen() {
   };
 
   const deleteRule = (rule: UserRule) => {
-    Alert.alert("Delete rule", `Delete "${rule.raw_text}"?`, [
+    appAlert("Delete rule", `Delete "${rule.raw_text}"?`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete", style: "destructive",
@@ -243,7 +243,7 @@ export default function RulesScreen() {
 
   const applyToExisting = async (rule: UserRule) => {
     if (!session) return;
-    Alert.alert(
+    appAlert(
       "Apply to existing saves?",
       "This will run the rule on all your existing saves in the background.",
       [
@@ -262,7 +262,7 @@ export default function RulesScreen() {
                 body: JSON.stringify({ rule_id: rule.id, user_id: session.user.id }),
               },
             ).catch(() => {});
-            Alert.alert("Running", "The rule is being applied in the background.");
+            appAlert("Running", "The rule is being applied in the background.");
           },
         },
       ],
@@ -352,7 +352,7 @@ export default function RulesScreen() {
                 </View>
                 <Pressable
                   onPress={() =>
-                    Alert.alert(rule.raw_text, undefined, [
+                    appAlert(rule.raw_text, undefined, [
                       { text: "Apply to existing saves", onPress: () => void applyToExisting(rule) },
                       { text: "Delete", style: "destructive", onPress: () => deleteRule(rule) },
                       { text: "Cancel", style: "cancel" },

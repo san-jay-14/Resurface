@@ -2,7 +2,6 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Dimensions,
   Image,
@@ -13,6 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { appAlert } from "@/providers/AlertProvider";
 import { useAuth } from "@/providers/AuthProvider";
 
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -308,7 +308,7 @@ export default function SignIn() {
       await fn();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong.";
-      Alert.alert("Couldn't sign in", msg);
+      appAlert("Couldn't sign in", msg);
     } finally {
       setPending(null);
     }
