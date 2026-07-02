@@ -18,7 +18,7 @@ import { useAuth } from "@/providers/AuthProvider";
 const { width: SCREEN_W } = Dimensions.get("window");
 
 type Phase = "intro" | "auth";
-type Pending = "google" | "apple" | "guest" | null;
+type Pending = "google" | "apple" | null;
 
 // ---------------------------------------------------------------------------
 // Dibs wordmark badge
@@ -144,13 +144,11 @@ function AuthPhase({
   pending,
   onGoogle,
   onApple,
-  onGuest,
 }: {
   onBack: () => void;
   pending: Pending;
   onGoogle: () => void;
   onApple: () => void;
-  onGuest: () => void;
 }) {
   const insets = useSafeAreaInsets();
 
@@ -182,12 +180,11 @@ function AuthPhase({
 
       {/* Brand */}
       <View style={{ flex: 1, justifyContent: "flex-end", paddingHorizontal: 24, paddingBottom: 48 }}>
-        <Text style={{
-          color: "#9013BB", fontSize: 44, fontWeight: "900",
-          letterSpacing: -2, marginBottom: 16,
-        }}>
-          dibs.
-        </Text>
+        <Image
+          source={require("@/assets/logo_purple.png")}
+          style={{ height: 46, width: 140, marginBottom: 20 }}
+          resizeMode="contain"
+        />
         <Text style={{
           color: "#1A1A1A", fontSize: 32, fontWeight: "800",
           lineHeight: 38, letterSpacing: -1, marginBottom: 8,
@@ -235,7 +232,7 @@ function AuthPhase({
                 <Text style={{ color: "#4285F4", fontSize: 13, fontWeight: "800" }}>G</Text>
               </View>
               <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
-                sign in with Google
+                Sign in with Google
               </Text>
             </>
           )}
@@ -251,28 +248,6 @@ function AuthPhase({
             onPress={onApple}
           />
         )}
-
-        {/* Divider */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 2 }}>
-          <View style={{ flex: 1, height: 1, backgroundColor: "#E5E5E5" }} />
-          <Text style={{ color: "rgba(26,26,26,0.3)", fontSize: 12 }}>or</Text>
-          <View style={{ flex: 1, height: 1, backgroundColor: "#E5E5E5" }} />
-        </View>
-
-        {/* Guest */}
-        <Pressable
-          onPress={onGuest}
-          disabled={pending !== null}
-          style={{ alignItems: "center", paddingVertical: 8 }}
-        >
-          {pending === "guest" ? (
-            <Text style={{ color: "rgba(26,26,26,0.35)", fontSize: 14 }}>Loading…</Text>
-          ) : (
-            <Text style={{ color: "rgba(26,26,26,0.35)", fontSize: 14 }}>
-              just start saving — no account needed
-            </Text>
-          )}
-        </Pressable>
       </View>
     </Animated.View>
   );
@@ -282,7 +257,7 @@ function AuthPhase({
 // Root component — manages phase transitions
 // ---------------------------------------------------------------------------
 export default function SignIn() {
-  const { signInWithGoogle, signInWithApple, signInAsGuest } = useAuth();
+  const { signInWithGoogle, signInWithApple } = useAuth();
   const [phase, setPhase] = useState<Phase>("intro");
   const [pending, setPending] = useState<Pending>(null);
 
@@ -328,7 +303,6 @@ export default function SignIn() {
       pending={pending}
       onGoogle={() => run("google", signInWithGoogle)}
       onApple={() => run("apple", signInWithApple)}
-      onGuest={() => run("guest", signInAsGuest)}
     />
   );
 }

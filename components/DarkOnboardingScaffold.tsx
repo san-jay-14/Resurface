@@ -135,12 +135,10 @@ export function DarkOnboardingScaffold({
           opacity: fadeAnim,
           transform: [{ translateY: slideAnim }],
           paddingTop: insets.top + 20,
-          justifyContent: "space-between",
-          paddingBottom: Math.max(insets.bottom, 20) + 12,
         }}
       >
-        {/* Top content — scrollable so it can never push the bottom actions
-            off-screen on shorter devices or content-heavy steps. */}
+        {/* Top content — flex:1 so it fills space and the bottom CTA never
+            gets pushed off-screen. Content-heavy screens can scroll. */}
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24 }}
@@ -175,9 +173,15 @@ export function DarkOnboardingScaffold({
           {buttonsInline && actions}
         </ScrollView>
 
-        {/* Bottom actions */}
+        {/* Bottom actions — pinned below the scroll area, always visible. */}
         {!buttonsInline && (
-          <View style={{ paddingHorizontal: 24 }}>
+          <View
+            style={{
+              paddingHorizontal: 24,
+              paddingTop: 12,
+              paddingBottom: Math.max(insets.bottom, 20) + 12,
+            }}
+          >
             {actions}
           </View>
         )}

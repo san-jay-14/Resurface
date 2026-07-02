@@ -4,7 +4,6 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
   Dimensions,
   Image,
   PanResponder,
@@ -12,17 +11,30 @@ import {
   Text,
   View,
 } from "react-native";
+import Animated, {
+  cancelAnimation,
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { CategoryIcon, CATEGORY_EMOJI, CATEGORY_LABEL } from "@/components/SaveCard";
+import { CategoryIcon, CATEGORY_LABEL } from "@/components/SaveCard";
 import type { Save } from "@/lib/database.types";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const CARD_W = SCREEN_W - 40;
-const SWIPE_THRESHOLD = 100;
-const VELOCITY_THRESHOLD = 0.5;
+const SWIPE_THRESHOLD = 90;
+const VELOCITY_THRESHOLD = 0.4;
+
+// Spring config that gives the elastic snap-back feel
+const SPRING_CONFIG = { damping: 14, stiffness: 180, mass: 0.8 };
 
 const PLATFORM_LABEL: Record<string, string> = {
   instagram: "Instagram", youtube: "YouTube", web: "Web",
@@ -50,33 +62,73 @@ export default function CleanupDeckScreen() {
   const [summary, setSummary] = useState({ archived: 0, kept: 0, done: 0 });
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const translateX = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const glowAnim = useRef(new Animated.Value(0)).current;
-  const glowOpacityOuter = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.12] });
-  const glowOpacityInner = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.22] });
-  const glowScale = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.05] });
-  const rotate = translateX.interpolate({
-    inputRange: [-SCREEN_W, 0, SCREEN_W],
-    outputRange: ["-25deg", "0deg", "25deg"],
-  });
-  const keepOpacity = translateX.interpolate({
-    inputRange: [0, 80], outputRange: [0, 1], extrapolate: "clamp",
-  });
-  const archiveOpacity = translateX.interpolate({
-    inputRange: [-80, 0], outputRange: [1, 0], extrapolate: "clamp",
-  });
-  const doneOpacity = translateY.interpolate({
-    inputRange: [-80, 0], outputRange: [1, 0], extrapolate: "clamp",
+  // Stable refs for access inside PanResponder (which closes over the first render)
+  const savesRef = useRef(saves);
+  savesRef.current = saves;
+  const currentIndexRef = useRef(currentIndex);
+  currentIndexRef.current = currentIndex;
+
+  // ─── Reanimated shared values — live on the UI thread ──────────────────────
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+
+  // Card transforms: follows finger 1:1, rotates based on horizontal offset
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      {
+        rotate: `${interpolate(
+          translateX.value,
+          [-SCREEN_W, 0, SCREEN_W],
+          [-22, 0, 22],
+          Extrapolation.CLAMP,
+        )}deg`,
+      },
+    ],
+  }));
+
+  // Direction label badges (KEEP / ARCHIVE / DONE IT) on the card
+  const keepLabelStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateX.value, [20, 70], [0, 1], Extrapolation.CLAMP),
+  }));
+  const archiveLabelStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateX.value, [-70, -20], [1, 0], Extrapolation.CLAMP),
+  }));
+  const doneLabelStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateY.value, [-70, -20], [1, 0], Extrapolation.CLAMP),
+  }));
+
+  // Coloured tint overlays on the card — the visual direction signal
+  const keepTintStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateX.value, [0, SWIPE_THRESHOLD], [0, 0.22], Extrapolation.CLAMP),
+  }));
+  const archiveTintStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateX.value, [-SWIPE_THRESHOLD, 0], [0.22, 0], Extrapolation.CLAMP),
+  }));
+  const doneTintStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(translateY.value, [-SWIPE_THRESHOLD, 0], [0.18, 0], Extrapolation.CLAMP),
+  }));
+
+  // Back card scales up as you drag the front card — depth parallax
+  const nextCardStyle = useAnimatedStyle(() => {
+    const drag = Math.max(Math.abs(translateX.value), Math.abs(translateY.value));
+    const progress = Math.min(drag / SCREEN_W, 1);
+    return {
+      transform: [
+        { scale: interpolate(progress, [0, 1], [0.93, 1.0], Extrapolation.CLAMP) },
+        { translateY: interpolate(progress, [0, 1], [14, 0], Extrapolation.CLAMP) },
+      ],
+      opacity: interpolate(progress, [0, 0.7], [0.45, 0.9], Extrapolation.CLAMP),
+    };
   });
 
   useEffect(() => {
-    void fetchDormantSaves();
+    void fetchSaves();
   }, [session]);
 
-  const fetchDormantSaves = async () => {
+  const fetchSaves = async () => {
     if (!session) return;
-
     const { data } = await supabase
       .from("saves")
       .select("*")
@@ -85,24 +137,22 @@ export default function CleanupDeckScreen() {
       .eq("acted_on", false)
       .order("created_at", { ascending: true })
       .limit(50);
-
     setSaves((data as Save[]) ?? []);
     setLoading(false);
   };
 
-  const pulseGlow = () => {
-    glowAnim.setValue(0);
-    Animated.sequence([
-      Animated.timing(glowAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-      Animated.timing(glowAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
-    ]).start();
-  };
+  const commitAction = (save: Save, action: "archive" | "keep" | "done") => {
+    // Reset position immediately so the new card appears at centre
+    translateX.value = 0;
+    translateY.value = 0;
 
-  const commitAction = async (save: Save, action: "archive" | "keep" | "done") => {
-    pulseGlow();
     setUndoStack((prev) => [...prev, { save, action }]);
     setCurrentIndex((i) => i + 1);
-    setSummary((s) => ({ ...s, [action === "archive" ? "archived" : action === "keep" ? "kept" : "done"]: s[action === "archive" ? "archived" : action === "keep" ? "kept" : "done"] + 1 }));
+    setSummary((s) => ({
+      ...s,
+      [action === "archive" ? "archived" : action === "keep" ? "kept" : "done"]:
+        s[action === "archive" ? "archived" : action === "keep" ? "kept" : "done"] + 1,
+    }));
 
     if (undoTimer.current) clearTimeout(undoTimer.current);
     setUndoVisible(true);
@@ -110,9 +160,6 @@ export default function CleanupDeckScreen() {
       setUndoVisible(false);
       void persistAction(save, action);
     }, 3000);
-
-    translateX.setValue(0);
-    translateY.setValue(0);
   };
 
   const persistAction = async (save: Save, action: "archive" | "keep" | "done") => {
@@ -144,43 +191,74 @@ export default function CleanupDeckScreen() {
     }));
   };
 
+  // ─── Throw helpers (called from buttons and PanResponder) ──────────────────
+  const throwRight = (save: Save) => {
+    translateX.value = withTiming(SCREEN_W * 1.5, { duration: 260 }, (finished) => {
+      "worklet";
+      if (finished) runOnJS(commitAction)(save, "keep");
+    });
+  };
+
+  const throwLeft = (save: Save) => {
+    translateX.value = withTiming(-SCREEN_W * 1.5, { duration: 260 }, (finished) => {
+      "worklet";
+      if (finished) runOnJS(commitAction)(save, "archive");
+    });
+  };
+
+  const throwUp = (save: Save) => {
+    translateY.value = withTiming(-SCREEN_W, { duration: 260 }, (finished) => {
+      "worklet";
+      if (finished) runOnJS(commitAction)(save, "done");
+    });
+  };
+
+  const snapBack = () => {
+    translateX.value = withSpring(0, SPRING_CONFIG);
+    translateY.value = withSpring(0, SPRING_CONFIG);
+  };
+
+  // ─── PanResponder (gesture detection — still JS thread, but smooth because
+  //     the Reanimated style callbacks are UI-thread worklets) ─────────────────
   const panResponder = PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 || Math.abs(g.dy) > 8,
-    onPanResponderMove: (_, g) => {
-      translateX.setValue(g.dx);
-      if (g.dy < 0) translateY.setValue(g.dy);
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
+
+    onPanResponderGrant: () => {
+      // Stop any in-progress spring so the card responds instantly to touch
+      cancelAnimation(translateX);
+      cancelAnimation(translateY);
     },
+
+    onPanResponderMove: (_, g) => {
+      translateX.value = g.dx;
+      // Only allow upward swipes; add gentle resistance to downward drags
+      translateY.value = g.dy < 0 ? g.dy : g.dy * 0.15;
+    },
+
     onPanResponderRelease: (_, g) => {
-      const save = saves[currentIndex];
+      const save = savesRef.current[currentIndexRef.current];
       if (!save) return;
 
       if (g.dx > SWIPE_THRESHOLD || g.vx > VELOCITY_THRESHOLD) {
-        Animated.timing(translateX, { toValue: SCREEN_W * 1.5, duration: 250, useNativeDriver: true }).start(() => {
-          void commitAction(save, "keep");
-        });
+        throwRight(save);
       } else if (g.dx < -SWIPE_THRESHOLD || g.vx < -VELOCITY_THRESHOLD) {
-        Animated.timing(translateX, { toValue: -SCREEN_W * 1.5, duration: 250, useNativeDriver: true }).start(() => {
-          void commitAction(save, "archive");
-        });
+        throwLeft(save);
       } else if (g.dy < -SWIPE_THRESHOLD || g.vy < -VELOCITY_THRESHOLD) {
-        Animated.timing(translateY, { toValue: -SCREEN_W, duration: 250, useNativeDriver: true }).start(() => {
-          void commitAction(save, "done");
-        });
+        throwUp(save);
       } else {
-        Animated.parallel([
-          Animated.spring(translateX, { toValue: 0, useNativeDriver: true }),
-          Animated.spring(translateY, { toValue: 0, useNativeDriver: true }),
-        ]).start();
+        snapBack();
       }
     },
+
+    onPanResponderTerminate: () => snapBack(),
   });
 
   const currentSave = saves[currentIndex];
   const isDone = !loading && currentIndex >= saves.length;
 
-  // Navigate to summary in an effect — never during render
   useEffect(() => {
-    if (!loading && (isDone || (!loading && saves.length === 0))) {
+    if (!loading && (isDone || saves.length === 0)) {
       router.replace({
         pathname: "/(app)/cleanup/summary",
         params: summary,
@@ -197,24 +275,20 @@ export default function CleanupDeckScreen() {
     );
   }
 
-  if (isDone || saves.length === 0) {
-    return null;
-  }
+  if (isDone || saves.length === 0) return null;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
       <StatusBar style="dark" />
 
       {/* Header */}
-      <View
-        style={{
-          paddingTop: insets.top + 10,
-          paddingHorizontal: 20,
-          paddingBottom: 16,
-          flexDirection: "row",
-          alignItems: "center",
-        }}
-      >
+      <View style={{
+        paddingTop: insets.top + 10,
+        paddingHorizontal: 20,
+        paddingBottom: 16,
+        flexDirection: "row",
+        alignItems: "center",
+      }}>
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <Ionicons name="close" size={26} color="#1A1A1A" />
         </Pressable>
@@ -228,53 +302,28 @@ export default function CleanupDeckScreen() {
 
       {/* Progress bar */}
       <View style={{ height: 2, backgroundColor: "#F0F0F0", marginHorizontal: 20, borderRadius: 1, marginBottom: 24 }}>
-        <View
-          style={{
-            height: 2, borderRadius: 1, backgroundColor: "#9013BB",
-            width: `${((currentIndex) / saves.length) * 100}%`,
-          }}
-        />
+        <View style={{
+          height: 2, borderRadius: 1, backgroundColor: "#9013BB",
+          width: `${(currentIndex / saves.length) * 100}%`,
+        }} />
       </View>
 
       {/* Card stack */}
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        {/* Subtle purple glow pulse behind the deck on every swipe/action */}
-        <Animated.View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            width: CARD_W * 1.5, height: CARD_W * 1.5,
-            borderRadius: (CARD_W * 1.5) / 2,
-            backgroundColor: "#9013BB",
-            opacity: glowOpacityOuter,
-            transform: [{ scale: glowScale }],
-          }}
-        />
-        <Animated.View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            width: CARD_W * 1.05, height: CARD_W * 1.05,
-            borderRadius: (CARD_W * 1.05) / 2,
-            backgroundColor: "#9013BB",
-            opacity: glowOpacityInner,
-            transform: [{ scale: glowScale }],
-          }}
-        />
 
-        {/* Next card (static, shown behind) — also preloads its thumbnail so
-            there's no load delay once it becomes the active card. */}
+        {/* Next card — scales up as you drag (depth effect) */}
         {saves[currentIndex + 1] && (
-          <View
-            style={{
-              position: "absolute",
-              width: CARD_W,
-              backgroundColor: "#F5F5F5",
-              borderRadius: 24,
-              overflow: "hidden",
-              opacity: 0.5,
-              transform: [{ scale: 0.94 }, { translateY: 14 }],
-            }}
+          <Animated.View
+            style={[
+              {
+                position: "absolute",
+                width: CARD_W,
+                backgroundColor: "#F5F5F5",
+                borderRadius: 24,
+                overflow: "hidden",
+              },
+              nextCardStyle,
+            ]}
           >
             {saves[currentIndex + 1].thumbnail_url ? (
               <Image
@@ -287,36 +336,66 @@ export default function CleanupDeckScreen() {
                 <CategoryIcon category={saves[currentIndex + 1].category} size={48} />
               </View>
             )}
-          </View>
+          </Animated.View>
         )}
 
-        {/* Active card */}
+        {/* Active card — follows finger via Reanimated (UI thread) */}
         {currentSave && (
           <Animated.View
             {...panResponder.panHandlers}
-            style={{
-              width: CARD_W,
-              backgroundColor: "#FFFFFF",
-              borderRadius: 24,
-              overflow: "hidden",
-              borderWidth: 1,
-              borderColor: "#E5E5E5",
-              transform: [{ translateX }, { translateY }, { rotate }],
-            }}
+            style={[
+              {
+                width: CARD_W,
+                backgroundColor: "#FFFFFF",
+                borderRadius: 24,
+                overflow: "hidden",
+                borderWidth: 1,
+                borderColor: "#E5E5E5",
+                shadowColor: "#000",
+                shadowOpacity: 0.08,
+                shadowOffset: { width: 0, height: 4 },
+                shadowRadius: 12,
+                elevation: 4,
+              },
+              cardStyle,
+            ]}
           >
+            {/* Directional tint overlays */}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                { ...StyleSheet.absoluteFill, backgroundColor: "#22C55E", zIndex: 5 },
+                keepTintStyle,
+              ]}
+            />
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                { ...StyleSheet.absoluteFill, backgroundColor: "#EF4444", zIndex: 5 },
+                archiveTintStyle,
+              ]}
+            />
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                { ...StyleSheet.absoluteFill, backgroundColor: "#9013BB", zIndex: 5 },
+                doneTintStyle,
+              ]}
+            />
+
             {/* Direction labels */}
-            <Animated.View style={{ position: "absolute", top: 20, right: 20, opacity: keepOpacity, zIndex: 10 }}>
-              <View style={{ backgroundColor: "#22C55E", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 }}>
+            <Animated.View style={[{ position: "absolute", top: 20, right: 20, zIndex: 10 }, keepLabelStyle]}>
+              <View style={{ backgroundColor: "#22C55E", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 2, borderColor: "#fff" }}>
                 <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>KEEP</Text>
               </View>
             </Animated.View>
-            <Animated.View style={{ position: "absolute", top: 20, left: 20, opacity: archiveOpacity, zIndex: 10 }}>
-              <View style={{ backgroundColor: "#EF4444", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 }}>
+            <Animated.View style={[{ position: "absolute", top: 20, left: 20, zIndex: 10 }, archiveLabelStyle]}>
+              <View style={{ backgroundColor: "#EF4444", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 2, borderColor: "#fff" }}>
                 <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>ARCHIVE</Text>
               </View>
             </Animated.View>
-            <Animated.View style={{ position: "absolute", top: 20, alignSelf: "center", opacity: doneOpacity, zIndex: 10 }}>
-              <View style={{ backgroundColor: "#A855F7", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 }}>
+            <Animated.View style={[{ position: "absolute", top: 20, alignSelf: "center", zIndex: 10 }, doneLabelStyle]}>
+              <View style={{ backgroundColor: "#9013BB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 2, borderColor: "#fff" }}>
                 <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>DONE IT</Text>
               </View>
             </Animated.View>
@@ -329,13 +408,11 @@ export default function CleanupDeckScreen() {
                 resizeMode="cover"
               />
             ) : (
-              <View
-                style={{
-                  width: "100%", aspectRatio: 0.85,
-                  backgroundColor: "#F5F5F5",
-                  alignItems: "center", justifyContent: "center",
-                }}
-              >
+              <View style={{
+                width: "100%", aspectRatio: 0.85,
+                backgroundColor: "#F5F5F5",
+                alignItems: "center", justifyContent: "center",
+              }}>
                 <CategoryIcon category={currentSave.category} size={56} />
               </View>
             )}
@@ -353,13 +430,11 @@ export default function CleanupDeckScreen() {
                   {PLATFORM_LABEL[currentSave.source_platform] ?? currentSave.source_platform}
                 </Text>
               )}
-              <View
-                style={{
-                  flexDirection: "row", alignItems: "center", gap: 6,
-                  marginTop: 10, backgroundColor: "#F5F5F5",
-                  alignSelf: "flex-start", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
-                }}
-              >
+              <View style={{
+                flexDirection: "row", alignItems: "center", gap: 6,
+                marginTop: 10, backgroundColor: "#F5F5F5",
+                alignSelf: "flex-start", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
+              }}>
                 <CategoryIcon category={currentSave.category} size={16} />
                 <Text style={{ color: "#888", fontSize: 12 }}>{CATEGORY_LABEL[currentSave.category] ?? "Unsorted"}</Text>
               </View>
@@ -369,76 +444,57 @@ export default function CleanupDeckScreen() {
       </View>
 
       {/* Action buttons */}
-      <View
-        style={{
-          flexDirection: "row", justifyContent: "space-around", alignItems: "center",
-          paddingBottom: Math.max(insets.bottom, 24) + 8,
-          paddingHorizontal: 24, paddingTop: 16,
-        }}
-      >
+      <View style={{
+        flexDirection: "row", justifyContent: "space-around", alignItems: "center",
+        paddingBottom: Math.max(insets.bottom, 24) + 8,
+        paddingHorizontal: 24, paddingTop: 16,
+      }}>
         <Pressable
-          onPress={() => {
-            if (!currentSave) return;
-            Animated.timing(translateX, { toValue: -SCREEN_W * 1.5, duration: 250, useNativeDriver: true }).start(() => {
-              void commitAction(currentSave, "archive");
-            });
-          }}
+          onPress={() => currentSave && throwLeft(currentSave)}
           style={{ alignItems: "center", gap: 6 }}
         >
-          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" }}>
-            <Ionicons name="archive-outline" size={24} color="#EF4444" />
+          <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "#FFF0F0", alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "#EF4444" }}>
+            <Ionicons name="archive-outline" size={26} color="#EF4444" />
           </View>
           <Text style={{ color: "#888", fontSize: 11 }}>Archive</Text>
         </Pressable>
 
         <Pressable
-          onPress={() => {
-            if (!currentSave) return;
-            Animated.timing(translateY, { toValue: -SCREEN_W, duration: 250, useNativeDriver: true }).start(() => {
-              void commitAction(currentSave, "done");
-            });
-          }}
+          onPress={() => currentSave && throwUp(currentSave)}
           style={{ alignItems: "center", gap: 6 }}
         >
-          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" }}>
-            <Ionicons name="checkmark-circle-outline" size={24} color="#9013BB" />
+          <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "#F0E8F7", alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "#9013BB" }}>
+            <Ionicons name="checkmark-circle-outline" size={26} color="#9013BB" />
           </View>
           <Text style={{ color: "#888", fontSize: 11 }}>Done it</Text>
         </Pressable>
 
         <Pressable
-          onPress={() => {
-            if (!currentSave) return;
-            Animated.timing(translateX, { toValue: SCREEN_W * 1.5, duration: 250, useNativeDriver: true }).start(() => {
-              void commitAction(currentSave, "keep");
-            });
-          }}
+          onPress={() => currentSave && throwRight(currentSave)}
           style={{ alignItems: "center", gap: 6 }}
         >
-          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" }}>
-            <Ionicons name="heart-outline" size={24} color="#22C55E" />
+          <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "#F0FFF4", alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "#22C55E" }}>
+            <Ionicons name="heart-outline" size={26} color="#22C55E" />
           </View>
           <Text style={{ color: "#888", fontSize: 11 }}>Keep</Text>
         </Pressable>
       </View>
 
       {/* Swipe hint */}
-      <Text style={{ color: "#888", fontSize: 11, textAlign: "center", paddingBottom: 8 }}>
+      <Text style={{ color: "#C0C0C0", fontSize: 11, textAlign: "center", paddingBottom: 8 }}>
         ← Archive · Keep → · ↑ Done it
       </Text>
 
       {/* Undo snackbar */}
       {undoVisible && (
-        <View
-          style={{
-            position: "absolute",
-            bottom: Math.max(insets.bottom, 20) + 80,
-            left: 20, right: 20,
-            backgroundColor: "#1A1A1A",
-            borderRadius: 14, flexDirection: "row", alignItems: "center",
-            paddingHorizontal: 16, paddingVertical: 12,
-          }}
-        >
+        <View style={{
+          position: "absolute",
+          bottom: Math.max(insets.bottom, 20) + 90,
+          left: 20, right: 20,
+          backgroundColor: "#1A1A1A",
+          borderRadius: 14, flexDirection: "row", alignItems: "center",
+          paddingHorizontal: 16, paddingVertical: 12,
+        }}>
           <Text style={{ color: "#fff", flex: 1, fontSize: 14 }}>Action applied</Text>
           <Pressable onPress={handleUndo}>
             <Text style={{ color: "#9013BB", fontSize: 14, fontWeight: "700" }}>Undo</Text>
@@ -448,3 +504,7 @@ export default function CleanupDeckScreen() {
     </View>
   );
 }
+
+// Avoid importing StyleSheet at the top to keep the file focused —
+// AbsoluteFill is the only usage and it's a simple object spread.
+const StyleSheet = { absoluteFill: { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0 } };
