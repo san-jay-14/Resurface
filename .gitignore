@@ -35,6 +35,11 @@ yarn-error.*
 .env*.local
 !.env.example
 
+# Play Store / EAS submit credentials
+play-store-service-account.json
+*-service-account.json
+google-play-*.json
+
 # typescript
 *.tsbuildinfo
 

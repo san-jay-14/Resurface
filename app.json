@@ -21,8 +21,8 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "permissions": [
-        "NOTIFICATIONS"
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW"
       ],
       "predictiveBackGestureEnabled": false,
       "intentFilters": [
