@@ -6,7 +6,7 @@ Dibs ("we", "us", the "app") is a personal tool that saves content you share
 into it and resurfaces it at the right moment. This policy explains what we
 collect, why, and your choices. By using Dibs you agree to this policy.
 
-> **Contact:** privacy@getdibs.app <!-- TODO: replace with a real inbox you monitor -->
+> **Contact:** sanjay.codesign@gmail.com
 
 ## Information we collect
 
@@ -45,15 +45,15 @@ third-party advertising.
 
 We share the minimum data necessary with providers that operate the app:
 
-| Provider | Purpose | Data shared |
-|---|---|---|
-| Supabase | Database, auth, storage, backend functions | Account, saved content, profile |
-| Expo | Push notification delivery | Push token |
-| Google | Sign-in, maps & geocoding | Auth token, place/location queries |
-| Apple | Sign-in | Auth token |
-| Mapbox | Map rendering | Approximate location |
-| Anthropic (Claude) | Categorising saved links | The URL / content you saved |
-| YouTube Data API | Metadata for saved videos | The video URL you saved |
+| Provider           | Purpose                                    | Data shared                        |
+| ------------------ | ------------------------------------------ | ---------------------------------- |
+| Supabase           | Database, auth, storage, backend functions | Account, saved content, profile    |
+| Expo               | Push notification delivery                 | Push token                         |
+| Google             | Sign-in, maps & geocoding                  | Auth token, place/location queries |
+| Apple              | Sign-in                                    | Auth token                         |
+| Mapbox             | Map rendering                              | Approximate location               |
+| Anthropic (Claude) | Categorising saved links                   | The URL / content you saved        |
+| YouTube Data API   | Metadata for saved videos                  | The video URL you saved            |
 
 Each provider processes data under its own privacy policy.
 
@@ -80,4 +80,4 @@ updated" date above.
 
 ## Contact
 
-Questions or deletion requests: privacy@getdibs.app
+Questions or deletion requests: sanjay.codesign@gmail.com
