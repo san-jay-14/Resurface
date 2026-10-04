@@ -16,7 +16,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { appAlert } from "@/providers/AlertProvider";
-import { supabase } from "@/lib/supabase";
+import { updateProfile } from "@/lib/profile";
+import { listSavesInCity } from "@/lib/saves";
 import { useAuth } from "@/providers/AuthProvider";
 
 // ---------------------------------------------------------------------------
@@ -74,7 +75,7 @@ const POPULAR_CITIES = CITIES.filter((c) => c.popular);
 const OTHER_CITIES = CITIES.filter((c) => !c.popular).sort((a, b) => a.name.localeCompare(b.name));
 
 export default function LocationPickerScreen() {
-  const { session, profile, refreshProfile } = useAuth();
+  const { session, profile, setProfile } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -92,29 +93,16 @@ export default function LocationPickerScreen() {
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== "granted" || !session) return;
 
-    const { data: locationRows } = await supabase
-      .from("save_locations")
-      .select("save_id, place_name")
-      .ilike("city", `%${cityName}%`);
-
-    if (!locationRows?.length) return;
-
-    const saveIds = locationRows.map((r) => r.save_id as string);
-
-    const { data: saves } = await supabase
-      .from("saves")
-      .select("id, title, ai_description, caption")
-      .eq("user_id", session.user.id)
-      .in("category", ["places", "fashion"])
-      .eq("acted_on", false)
-      .eq("archived", false)
-      .in("id", saveIds)
-      .limit(5);
-
-    if (!saves?.length) return;
+    let saves;
+    try {
+      saves = (await listSavesInCity(cityName, ["places", "fashion"])).slice(0, 5);
+    } catch {
+      return; // the city is already set; the heads-up notification is best effort
+    }
+    if (!saves.length) return;
 
     const firstName = (profile?.name ?? "").split(" ")[0] || "";
-    const top = saves[0];
+    const top = saves[0]!;
     const label = top.title ?? top.ai_description ?? top.caption ?? "a spot";
 
     const title = firstName
@@ -138,22 +126,19 @@ export default function LocationPickerScreen() {
 
   async function selectCity(city: City) {
     if (!session) return;
-    if (isHomeMode) {
-      await supabase.from("users").update({
-        home_city: city.name,
-        home_city_lat: city.lat,
-        home_city_lng: city.lng,
-      }).eq("id", session.user.id);
-    } else {
-      await supabase.from("users").update({
-        current_city: city.name,
-        current_city_lat: city.lat,
-        current_city_lng: city.lng,
-        current_city_updated_at: new Date().toISOString(),
-      }).eq("id", session.user.id);
-      void notifyPlacesInCity(city.name); // immediate notification, fire-and-forget
+    try {
+      setProfile(
+        await updateProfile(
+          isHomeMode
+            ? { home_city: city.name, home_city_lat: city.lat, home_city_lng: city.lng }
+            : { current_city: city.name, current_city_lat: city.lat, current_city_lng: city.lng },
+        ),
+      );
+    } catch {
+      appAlert("Couldn't save", "Check your connection and try again.");
+      return;
     }
-    await refreshProfile();
+    if (!isHomeMode) void notifyPlacesInCity(city.name); // immediate notification, fire-and-forget
     router.back();
   }
 
@@ -170,22 +155,18 @@ export default function LocationPickerScreen() {
       const cityName = rev[0]?.city ?? rev[0]?.subregion ?? rev[0]?.region ?? "Unknown";
 
       if (!session) return;
-      if (isHomeMode) {
-        await supabase.from("users").update({
-          home_city: cityName,
-          home_city_lat: loc.coords.latitude,
-          home_city_lng: loc.coords.longitude,
-        }).eq("id", session.user.id);
-      } else {
-        await supabase.from("users").update({
-          current_city: cityName,
-          current_city_lat: loc.coords.latitude,
-          current_city_lng: loc.coords.longitude,
-          current_city_updated_at: new Date().toISOString(),
-        }).eq("id", session.user.id);
-        void notifyPlacesInCity(cityName);
-      }
-      await refreshProfile();
+      setProfile(
+        await updateProfile(
+          isHomeMode
+            ? { home_city: cityName, home_city_lat: loc.coords.latitude, home_city_lng: loc.coords.longitude }
+            : {
+                current_city: cityName,
+                current_city_lat: loc.coords.latitude,
+                current_city_lng: loc.coords.longitude,
+              },
+        ),
+      );
+      if (!isHomeMode) void notifyPlacesInCity(cityName);
       router.back();
     } catch {
       appAlert("Couldn't detect", "Try selecting your city manually.");

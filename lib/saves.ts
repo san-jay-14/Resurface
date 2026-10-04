@@ -1,18 +1,18 @@
-import { supabase } from "@/lib/supabase";
-import type { PlaceSave, Save, SaveCategory, SourcePlatform } from "@/lib/database.types";
+import { api } from "@/lib/api";
+import type {
+  ArchivedSave,
+  PlaceSave,
+  Save,
+  SaveCategory,
+  SaveLocation,
+  SourcePlatform,
+} from "@/lib/database.types";
 
 export interface NewManualSave {
-  userId: string;
   category: SaveCategory;
   sourceUrl?: string;
   sourcePlatform: SourcePlatform;
   location?: { placeName: string; city?: string };
-}
-
-export interface NewAutoSave {
-  userId: string;
-  url: string;
-  sourcePlatform: SourcePlatform;
 }
 
 /** Infer the source platform from a URL (spec §3.2). */
@@ -22,258 +22,138 @@ export function detectPlatform(url: string): SourcePlatform {
   return "web";
 }
 
+export interface ListSavesParams {
+  category?: SaveCategory;
+  archived?: boolean | "any";
+  actedOn?: boolean;
+  search?: string;
+  updatedSince?: string;
+  before?: string;
+  ids?: string[];
+  order?: "asc" | "desc";
+  limit?: number;
+}
+
+export async function listSaves(p: ListSavesParams = {}): Promise<Save[]> {
+  const { saves } = await api.get<{ saves: Save[] }>("/saves", {
+    category: p.category,
+    archived: p.archived === undefined ? undefined : String(p.archived),
+    acted_on: p.actedOn,
+    q: p.search,
+    updated_since: p.updatedSince,
+    before: p.before,
+    ids: p.ids?.join(","),
+    order: p.order,
+    limit: p.limit,
+  });
+  return saves;
+}
+
+/** Number of live saves per category, in a single call. */
+export async function getCategoryCounts(): Promise<Partial<Record<SaveCategory, number>>> {
+  const { counts } = await api.get<{ counts: Partial<Record<SaveCategory, number>> }>(
+    "/saves/counts",
+  );
+  return counts;
+}
+
+export interface SaveDetail {
+  save: Save;
+  location: SaveLocation | null;
+  board_ids: string[];
+  owned: boolean;
+}
+
+export const getSave = (id: string) => api.get<SaveDetail>(`/saves/${id}`);
+
+export async function getSimilarSaves(id: string): Promise<Save[]> {
+  const { saves } = await api.get<{ saves: Save[] }>(`/saves/${id}/similar`);
+  return saves;
+}
+
+export interface SavePatch {
+  is_favorite?: boolean;
+  acted_on?: boolean;
+  note?: string | null;
+  remind_at?: string | null;
+  reminded_at?: string | null;
+  category?: SaveCategory;
+  sub_category_id?: string | null;
+  title?: string | null;
+  /** Stamp `last_viewed_at` server-side. */
+  viewed?: true;
+}
+
+export async function updateSave(id: string, patch: SavePatch): Promise<Save> {
+  const { save } = await api.patch<{ save: Save }>(`/saves/${id}`, patch);
+  return save;
+}
+
 /**
- * True for platforms where we can auto-fetch metadata.
- * Instagram is false because no metadata API exists (spec §3.4 note).
+ * Hand the shared URL to the pipeline: the server canonicalizes it and creates the save plus one
+ * fetch job (idempotent: sharing the same post twice never duplicates). Results arrive on the save
+ * row, so callers poll `listSaves({ updatedSince })` while saves are pending.
+ * Throws an ApiError when the server rejects the URL, so the caller can fall back to manual.
  */
-export function isAutoPlatform(platform: SourcePlatform): boolean {
-  return platform === "youtube" || platform === "web";
+export async function enqueueSave(url: string): Promise<{ saveId: string; created: boolean }> {
+  const r = await api.post<{ save_id: string; created: boolean }>("/saves/enqueue", { url });
+  return { saveId: r.save_id, created: r.created };
 }
 
 /** Manual path: category popup save (spec §3.3). */
-export async function createManualSave({
-  userId,
-  category,
-  sourceUrl,
-  sourcePlatform,
-  location,
-}: NewManualSave): Promise<Save> {
-  const { data, error } = await supabase
-    .from("saves")
-    .insert({
-      user_id: userId,
-      category,
-      source_url: sourceUrl ?? null,
-      source_platform: sourcePlatform,
-      status: "manual",
-    })
-    .select()
-    .single();
-  if (error) throw error;
-
-  if (location?.placeName) {
-    const { error: locError } = await supabase.from("save_locations").insert({
-      save_id: data.id,
-      place_name: location.placeName,
-      city: location.city ?? null,
-    });
-    if (locError) console.warn("Failed to save location:", locError.message);
-  }
-
-  return data as Save;
-}
-
-/** Auto path: create a pending save, then kick off enrichment (spec §3.4). */
-export async function createPendingSave({
-  userId,
-  url,
-  sourcePlatform,
-}: NewAutoSave): Promise<Save> {
-  const { data, error } = await supabase
-    .from("saves")
-    .insert({
-      user_id: userId,
-      category: "unsorted",
-      source_url: url,
-      source_platform: sourcePlatform,
-      status: "pending",
-    })
-    .select()
-    .single();
-  if (error) throw error;
-  return data as Save;
-}
-
-/**
- * Fire-and-forget: invoke the enrich-save Edge Function.
- * The save is already in the DB; this enriches it asynchronously.
- */
-export async function triggerEnrich(saveId: string): Promise<void> {
-  const { error } = await supabase.functions.invoke("enrich-save", {
-    body: { save_id: saveId },
+export async function createManualSave(input: NewManualSave): Promise<Save> {
+  const { save } = await api.post<{ save: Save }>("/saves/manual", {
+    category: input.category,
+    source_url: input.sourceUrl ?? null,
+    source_platform: input.sourcePlatform,
+    ...(input.location?.placeName
+      ? { location: { place_name: input.location.placeName, city: input.location.city ?? null } }
+      : {}),
   });
-  if (error) console.warn("Enrich error:", error.message);
+  return save;
 }
 
-export interface ScrapedSaveData {
-  caption: string;
-  hashtags: string[];
-  thumbnail_url: string | null;
-  owner_username: string | null;
-  owner_full_name: string | null;
-  owner_profile_pic_url: string | null;
-  category: SaveCategory;
-  category_confidence: number;
-  location: {
-    raw_name: string;
-    resolved_name: string;
-    city: string;
-    country: string;
-    lat: number;
-    lng: number;
-    google_place_id: string;
-  } | null;
+/** Move a save to the archive (restorable for 30 days). */
+export async function archiveSave(id: string): Promise<void> {
+  await api.post(`/saves/${id}/archive`);
 }
 
-/** Creates a save from a successful Instagram auto-scrape. */
-export async function createScrapedSave(
-  userId: string,
-  url: string,
-  data: ScrapedSaveData,
-): Promise<Save> {
-  const { data: save, error } = await supabase
-    .from("saves")
-    .insert({
-      user_id: userId,
-      source_url: url,
-      source_platform: "instagram",
-      category: data.category,
-      category_confidence: data.category_confidence,
-      caption: data.caption || null,
-      keywords: data.hashtags.length > 0 ? data.hashtags : null,
-      thumbnail_url: data.thumbnail_url || null,
-      source_username: data.owner_username || null,
-      scrape_method: "auto",
-      status: "enriched",
-    })
-    .select()
-    .single();
-  if (error) throw error;
-
-  if (data.location) {
-    const { error: locError } = await supabase.from("save_locations").insert({
-      save_id: save.id,
-      place_name: data.location.resolved_name,
-      lat: data.location.lat,
-      lng: data.location.lng,
-      city: data.location.city,
-      country: data.location.country,
-      google_place_id: data.location.google_place_id,
-    });
-    if (locError) console.warn("Failed to save location:", locError.message);
-  }
-
-  return save as Save;
+export async function listArchived(): Promise<ArchivedSave[]> {
+  const { archived } = await api.get<{ archived: ArchivedSave[] }>("/archived");
+  return archived;
 }
 
-type RawMapRow = {
-  id: string;
-  caption: string | null;
-  note: string | null;
-  thumbnail_url: string | null;
-  acted_on: boolean;
-  created_at: string;
-  source_url: string | null;
-  save_locations: {
-    place_name: string | null;
-    lat: number | null;
-    lng: number | null;
-    city: string | null;
-    google_place_id: string | null;
-  };
-};
+export const restoreArchived = (id: string) => api.post(`/archived/${id}/restore`);
+export const deleteArchived = (id: string) => api.delete(`/archived/${id}`);
 
-/** Fetches up to 200 saves with location data for the map view. Works for any category. */
-export async function fetchPlacesMapSaves(userId: string, category: SaveCategory = "places"): Promise<{
+export interface MapResult {
   mapped: PlaceSave[];
   unmappedCount: number;
-}> {
-  const [mappedRes, allRes] = await Promise.all([
-    supabase
-      .from("saves")
-      .select(
-        "id, caption, note, thumbnail_url, acted_on, created_at, source_url, save_locations!inner(place_name, lat, lng, city, google_place_id)",
-      )
-      .eq("user_id", userId)
-      .eq("category", category)
-      .eq("archived", false)
-      .order("created_at", { ascending: false })
-      .limit(200),
-    supabase
-      .from("saves")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("category", category)
-      .eq("archived", false),
-  ]);
-
-  const mapped: PlaceSave[] = ((mappedRes.data ?? []) as unknown as RawMapRow[])
-    .filter((row) => row.save_locations?.lat != null && row.save_locations?.lng != null)
-    .map((row) => ({
-      id: row.id,
-      caption: row.caption ?? null,
-      note: row.note ?? null,
-      thumbnail_url: row.thumbnail_url ?? null,
-      acted_on: row.acted_on,
-      created_at: row.created_at,
-      source_url: row.source_url ?? null,
-      location_name: row.save_locations.place_name ?? "Unnamed place",
-      location_city: row.save_locations.city ?? null,
-      lat: row.save_locations.lat!,
-      lng: row.save_locations.lng!,
-      google_place_id: row.save_locations.google_place_id ?? null,
-    }));
-
-  const totalPlaces = allRes.count ?? 0;
-  const unmappedCount = Math.max(0, totalPlaces - mapped.length);
-
-  return { mapped, unmappedCount };
 }
 
-type RawCollectionMapRow = {
-  saves: {
-    id: string;
-    caption: string | null;
-    note: string | null;
-    thumbnail_url: string | null;
-    acted_on: boolean;
-    created_at: string;
-    source_url: string | null;
-    save_locations: {
-      place_name: string | null;
-      lat: number | null;
-      lng: number | null;
-      city: string | null;
-      google_place_id: string | null;
-    } | null;
-  } | null;
-};
+/** A category's saves that have coordinates (up to 200), plus how many do not. */
+export async function fetchPlacesMapSaves(category: SaveCategory = "places"): Promise<MapResult> {
+  const r = await api.get<{ mapped: PlaceSave[]; unmapped_count: number }>("/saves/map", {
+    category,
+  });
+  return { mapped: r.mapped, unmappedCount: r.unmapped_count };
+}
 
-/** Fetches a custom board's saves that have location data, for boards with
- *  `requires_location` enabled — same shape as `fetchPlacesMapSaves`, scoped
- *  to a collection instead of a category. */
-export async function fetchCollectionMapSaves(collectionId: string): Promise<{
-  mapped: PlaceSave[];
-  unmappedCount: number;
-}> {
-  const { data } = await supabase
-    .from("collection_saves")
-    .select(
-      "saves(id, caption, note, thumbnail_url, acted_on, created_at, source_url, save_locations(place_name, lat, lng, city, google_place_id))",
-    )
-    .eq("collection_id", collectionId);
+export interface ActivityFeed {
+  saves: Save[];
+  board_adds: { save_id: string; added_at: string; board_name: string }[];
+}
 
-  const rows = ((data ?? []) as unknown as RawCollectionMapRow[])
-    .map((r) => r.saves)
-    .filter((s): s is NonNullable<typeof s> => s !== null);
+export const getActivityFeed = () => api.get<ActivityFeed>("/activity");
 
-  const mapped: PlaceSave[] = rows
-    .filter((row) => row.save_locations?.lat != null && row.save_locations?.lng != null)
-    .map((row) => ({
-      id: row.id,
-      caption: row.caption ?? null,
-      note: row.note ?? null,
-      thumbnail_url: row.thumbnail_url ?? null,
-      acted_on: row.acted_on,
-      created_at: row.created_at,
-      source_url: row.source_url ?? null,
-      location_name: row.save_locations!.place_name ?? "Unnamed place",
-      location_city: row.save_locations!.city ?? null,
-      lat: row.save_locations!.lat!,
-      lng: row.save_locations!.lng!,
-      google_place_id: row.save_locations!.google_place_id ?? null,
-    }));
-
-  const unmappedCount = Math.max(0, rows.length - mapped.length);
-  return { mapped, unmappedCount };
+/** Un-acted-on saves in a city, for the "you've arrived" local notification. */
+export async function listSavesInCity(
+  city: string,
+  categories: SaveCategory[] = ["places"],
+): Promise<Save[]> {
+  const { saves } = await api.get<{ saves: Save[] }>("/saves/city", {
+    city,
+    categories: categories.join(","),
+  });
+  return saves;
 }

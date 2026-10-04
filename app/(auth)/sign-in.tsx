@@ -5,6 +5,7 @@ import { Animated, Image, Platform, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import GoogleIcon from "@/components/GoogleIcon";
+import { env } from "@/lib/env";
 import { appAlert } from "@/providers/AlertProvider";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -65,7 +66,7 @@ export default function SignIn() {
     </Animated.View>
   );
 
-  async function run(which: Exclude<Pending, null>, fn: () => Promise<void>) {
+  async function run(which: Exclude<Pending, null>, fn: () => Promise<boolean>) {
     try {
       setPending(which);
       await fn();
@@ -84,6 +85,10 @@ export default function SignIn() {
       {/* Badge */}
       <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 24 }}>
         {line(0, <DibsBadge />)}
+        {__DEV__ && (
+          // Dev builds only: shows which API this JS bundle talks to, so a stale install is obvious.
+          <Text style={{ color: "#999", fontSize: 11, marginTop: 6 }}>API: {env.apiUrl}</Text>
+        )}
       </View>
 
       {/* Headline — the crux, in one breath */}

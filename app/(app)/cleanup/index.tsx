@@ -25,7 +25,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CategoryIcon, CATEGORY_LABEL } from "@/components/SaveCard";
 import type { Save } from "@/lib/database.types";
-import { supabase } from "@/lib/supabase";
+import { archiveSave, listSaves, updateSave } from "@/lib/saves";
 import { useAuth } from "@/providers/AuthProvider";
 
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -129,15 +129,11 @@ export default function CleanupDeckScreen() {
 
   const fetchSaves = async () => {
     if (!session) return;
-    const { data } = await supabase
-      .from("saves")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .eq("archived", false)
-      .eq("acted_on", false)
-      .order("created_at", { ascending: true })
-      .limit(50);
-    setSaves((data as Save[]) ?? []);
+    try {
+      setSaves(await listSaves({ archived: false, actedOn: false, order: "asc", limit: 50 }));
+    } catch (err) {
+      console.warn("Failed to load saves for cleanup:", err);
+    }
     setLoading(false);
   };
 
@@ -163,17 +159,12 @@ export default function CleanupDeckScreen() {
   };
 
   const persistAction = async (save: Save, action: "archive" | "keep" | "done") => {
-    if (action === "archive") {
-      await supabase.from("archived_saves").insert({
-        user_id: save.user_id,
-        original_save_id: save.id,
-        original_data: save,
-      });
-      await supabase.from("saves").update({ archived: true, archived_at: new Date().toISOString() }).eq("id", save.id);
-    } else if (action === "keep") {
-      await supabase.from("saves").update({ last_viewed_at: new Date().toISOString() }).eq("id", save.id);
-    } else if (action === "done") {
-      await supabase.from("saves").update({ acted_on: true, acted_on_at: new Date().toISOString() }).eq("id", save.id);
+    try {
+      if (action === "archive") await archiveSave(save.id);
+      else if (action === "keep") await updateSave(save.id, { viewed: true });
+      else await updateSave(save.id, { acted_on: true });
+    } catch (err) {
+      console.warn("Failed to persist cleanup action:", err);
     }
   };
 

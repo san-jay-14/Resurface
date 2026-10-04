@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CategoryIcon, CATEGORY_LABEL, getSaveTitle } from "@/components/SaveCard";
 import { markActivitySeen } from "@/lib/activity";
 import type { Save } from "@/lib/database.types";
-import { supabase } from "@/lib/supabase";
+import { getActivityFeed } from "@/lib/saves";
 import { useAuth } from "@/providers/AuthProvider";
 
 // ---------------------------------------------------------------------------
@@ -43,12 +43,6 @@ interface ActivityEntry {
   actionLabel: string;
   timestamp: string;
 }
-
-type RawCollectionSave = {
-  save_id: string;
-  added_at: string;
-  collections: { name: string } | null;
-};
 
 // ---------------------------------------------------------------------------
 // Row
@@ -101,23 +95,16 @@ export default function ActivityLog() {
     void (async () => {
       setLoading(true);
 
-      const { data: savesData } = await supabase
-        .from("saves")
-        .select("*")
-        .eq("user_id", session.user.id)
-        .eq("archived", false)
-        .order("created_at", { ascending: false })
-        .limit(150);
-
-      const saves = (savesData as Save[]) ?? [];
+      let feed;
+      try {
+        feed = await getActivityFeed();
+      } catch (err) {
+        console.warn("Failed to load activity:", err);
+        setLoading(false);
+        return;
+      }
+      const saves = feed.saves;
       const savesById = new Map(saves.map((s) => [s.id, s]));
-
-      const { data: collectionSavesData } = saves.length > 0
-        ? await supabase
-            .from("collection_saves")
-            .select("save_id, added_at, collections(name)")
-            .in("save_id", saves.map((s) => s.id))
-        : { data: [] as RawCollectionSave[] };
 
       const saveEntries: ActivityEntry[] = saves.map((save) => ({
         id: `save:${save.id}`,
@@ -126,14 +113,14 @@ export default function ActivityLog() {
         timestamp: save.created_at,
       }));
 
-      const boardEntries: ActivityEntry[] = ((collectionSavesData as unknown as RawCollectionSave[]) ?? [])
+      const boardEntries: ActivityEntry[] = feed.board_adds
         .map((row) => {
           const save = savesById.get(row.save_id);
-          if (!save || !row.collections) return null;
+          if (!save) return null;
           return {
             id: `board:${row.save_id}:${row.added_at}`,
             save,
-            actionLabel: `Added to "${row.collections.name}"`,
+            actionLabel: `Added to "${row.board_name}"`,
             timestamp: row.added_at,
           };
         })

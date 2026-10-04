@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -13,16 +13,22 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { env } from "@/lib/env";
+import { joinBoard } from "@/lib/boards";
 import { appAlert } from "@/providers/AlertProvider";
-import { useAuth } from "@/providers/AuthProvider";
+import { isApiError, useAuth } from "@/providers/AuthProvider";
 
 export default function JoinBoardScreen() {
   const { session } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+  const params = useLocalSearchParams<{ code?: string }>();
   const [code, setCode] = useState("");
+
+  // Invite deep links (dibs://board/join?code=…) arrive with the code pre-filled.
+  useEffect(() => {
+    if (params.code) setCode(String(params.code).toUpperCase());
+  }, [params.code]);
   const [loading, setLoading] = useState(false);
 
   const handleJoin = async () => {
@@ -31,34 +37,21 @@ export default function JoinBoardScreen() {
     setLoading(true);
 
     try {
-      const res = await fetch(
-        `${env.supabaseUrl}/functions/v1/board-invite-join`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ invite_code: trimmed, user_id: session.user.id }),
-        },
-      );
-      const json = await res.json() as { ok: boolean; board?: { id: string; name: string; save_count: number }; error?: string };
-
-      if (!json.ok || !json.board) {
-        appAlert("Couldn't join", json.error ?? "Something went wrong.");
-        return;
-      }
-
+      const { board } = await joinBoard(trimmed);
       router.replace({
         pathname: "/(app)/boards/confirm",
         params: {
-          boardId: json.board.id,
-          boardName: json.board.name,
-          saveCount: String(json.board.save_count),
+          boardId: board.id,
+          boardName: board.name,
+          saveCount: String(board.save_count),
         },
       } as never);
-    } catch {
-      appAlert("Couldn't connect", "Check your connection and try again.");
+    } catch (err) {
+      if (isApiError(err) && err.status !== 0) {
+        appAlert("Couldn't join", err.message);
+      } else {
+        appAlert("Couldn't connect", "Check your connection and try again.");
+      }
     } finally {
       setLoading(false);
     }

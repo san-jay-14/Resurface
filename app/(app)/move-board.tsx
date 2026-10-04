@@ -16,8 +16,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CATEGORY_EMOJI, CATEGORY_LABEL, getSaveTitle } from "@/components/SaveCard";
 import type { Save, SaveCategory } from "@/lib/database.types";
 import { appAlert } from "@/providers/AlertProvider";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/providers/AuthProvider";
+import { addSaveToBoard, createBoard as createBoardApi, listBoards } from "@/lib/boards";
+import { getCategoryCounts, getSave, updateSave } from "@/lib/saves";
+import { isApiError, useAuth } from "@/providers/AuthProvider";
 
 const ALL_CATEGORIES: SaveCategory[] = [
   "places", "recipes", "fashion", "shopping", "watch_learn", "inspo", "unsorted",
@@ -107,36 +108,25 @@ export default function MoveBoardScreen() {
     void (async () => {
       setLoading(true);
 
-      const [saveRes, savesRes, colRes, memRes] = await Promise.all([
-        supabase.from("saves").select("*").eq("id", id).single(),
-        supabase.from("saves").select("category").eq("user_id", session.user.id).eq("archived", false),
-        supabase.from("collections").select("id, name, collection_saves(save_id)").eq("user_id", session.user.id).order("name"),
-        supabase.from("collection_saves").select("collection_id").eq("save_id", id),
-      ]);
-
-      if (saveRes.data) {
-        const s = saveRes.data as Save;
-        setSave(s);
-        setSelected({ type: "category", value: s.category });
+      try {
+        const [detail, counts, boards] = await Promise.all([
+          getSave(id),
+          getCategoryCounts(),
+          listBoards(),
+        ]);
+        setSave(detail.save);
+        setSelected({ type: "category", value: detail.save.category });
+        setCategoryCounts(counts as Record<string, number>);
+        // Only boards the user owns accept their saves.
+        setCollections(
+          boards
+            .filter((b) => b.role === "owner")
+            .map((b) => ({ id: b.id, name: b.name, count: b.save_count })),
+        );
+        setMembership(new Set(detail.board_ids));
+      } catch (err) {
+        console.warn("Failed to load move options:", err);
       }
-
-      const counts: Record<string, number> = {};
-      for (const row of savesRes.data ?? []) {
-        const cat = row.category as string;
-        counts[cat] = (counts[cat] ?? 0) + 1;
-      }
-      setCategoryCounts(counts);
-
-      type RawCol = { id: string; name: string; collection_saves: { save_id: string }[] };
-      setCollections(
-        ((colRes.data ?? []) as unknown as RawCol[]).map((c) => ({
-          id: c.id,
-          name: c.name,
-          count: c.collection_saves?.length ?? 0,
-        })),
-      );
-
-      setMembership(new Set((memRes.data ?? []).map((r) => r.collection_id as string)));
       setLoading(false);
     })();
   }, [id, session]);
@@ -150,19 +140,19 @@ export default function MoveBoardScreen() {
     const name = newName.trim();
     if (!name || !session) return;
     setCreateLoading(true);
-    const { data, error } = await supabase
-      .from("collections").insert({ user_id: session.user.id, name }).select().single();
-    setCreateLoading(false);
-    if (error) {
-      appAlert("Error", error.message.includes("unique")
-        ? "A board with that name already exists." : error.message);
-      return;
-    }
-    if (data) {
+    try {
+      const board = await createBoardApi(name);
       setCollections((prev) =>
-        [...prev, { id: data.id, name: data.name, count: 0 }].sort((a, b) => a.name.localeCompare(b.name)),
+        [...prev, { id: board.id, name: board.name, count: 0 }].sort((a, b) => a.name.localeCompare(b.name)),
       );
-      setSelected({ type: "collection", value: data.id, name: data.name });
+      setSelected({ type: "collection", value: board.id, name: board.name });
+    } catch (err) {
+      appAlert("Error", isApiError(err, "board_name_taken")
+        ? "A board with that name already exists."
+        : err instanceof Error ? err.message : "Couldn't create the board.");
+      return;
+    } finally {
+      setCreateLoading(false);
     }
     setNewName("");
     setCreatingNew(false);
@@ -171,13 +161,17 @@ export default function MoveBoardScreen() {
   const confirmMove = async () => {
     if (!selected || !id) return;
     setConfirming(true);
-    if (selected.type === "category") {
-      await supabase
-        .from("saves")
-        .update({ category: selected.value, last_interacted_at: new Date().toISOString() })
-        .eq("id", id);
-    } else {
-      await supabase.from("collection_saves").insert({ collection_id: selected.value, save_id: id });
+    try {
+      if (selected.type === "category") {
+        await updateSave(id, { category: selected.value as SaveCategory });
+      } else {
+        await addSaveToBoard(selected.value, id);
+      }
+    } catch (err) {
+      setConfirming(false);
+      setConfirmVisible(false);
+      appAlert("Couldn't move", err instanceof Error ? err.message : "Try again.");
+      return;
     }
     setConfirming(false);
     setConfirmVisible(false);

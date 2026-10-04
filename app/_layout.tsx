@@ -11,7 +11,7 @@ import { AppState, type AppStateStatus, ActivityIndicator, View } from "react-na
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { detectAndUpdateCity } from "@/lib/location";
-import { supabase } from "@/lib/supabase";
+import { markNotificationTapped } from "@/lib/notifications";
 import { AlertProvider } from "@/providers/AlertProvider";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
 
@@ -33,10 +33,9 @@ function RootNavigator() {
   const segments = useSegments();
   const router = useRouter();
 
-  // Only block on initializing — loadProfile is awaited before initializing
-  // is set to false, so the profile result is already known by then.
-  // Do NOT include profileLoading here: toggling resolving unmounts the Stack
-  // and resets navigation to the first route in the group.
+  // Only block on initializing — the first profile fetch is part of it, so the profile result is
+  // already known by then. Do NOT block on later profile refreshes: toggling resolving unmounts
+  // the Stack and resets navigation to the first route in the group.
   const resolving = initializing;
 
   useEffect(() => {
@@ -76,14 +75,17 @@ function RootNavigator() {
       const parsed = Linking.parse(url);
       // dibs://board/join?code=XXXX
       if (parsed.scheme === "dibs" && parsed.path === "board/join" && parsed.queryParams?.code) {
-        router.push({ pathname: "/(app)/boards/invite", params: {} } as never);
+        router.push({
+          pathname: "/(app)/boards/invite",
+          params: { code: String(parsed.queryParams.code) },
+        } as never);
         return;
       }
       // https://getdibs.app/join/XXXX
       if (parsed.hostname === "getdibs.app" && typeof parsed.path === "string" && parsed.path.startsWith("/join/")) {
         const code = parsed.path.split("/join/")[1];
         if (code) {
-          router.push({ pathname: "/(app)/boards/invite", params: {} } as never);
+          router.push({ pathname: "/(app)/boards/invite", params: { code } } as never);
         }
       }
     };
@@ -94,12 +96,12 @@ function RootNavigator() {
   }, [session]);
 
   // City detection — runs on every app foreground event (not on every render).
-  // Updates users.current_city so the daily cron can fire the new-city trigger.
+  // Updates the profile city so the daily resurface task can fire the new-city trigger.
   const lastAppState = useRef<AppStateStatus>(AppState.currentState);
   useEffect(() => {
     if (!session) return;
     const detectAndRefresh = () =>
-      void detectAndUpdateCity(session.user.id).then((city) => {
+      void detectAndUpdateCity().then((city) => {
         if (city) void refreshProfile();
       });
     const sub = AppState.addEventListener("change", (next) => {
@@ -138,13 +140,9 @@ function RootNavigator() {
     }
 
     if (data.log_id) {
-      supabase
-        .from("notification_log")
-        .update({ tapped: true })
-        .eq("id", data.log_id)
-        .then(({ error }) => {
-          if (error) console.warn("[Notif] Failed to mark tapped:", error.message);
-        });
+      markNotificationTapped(data.log_id).catch((err: unknown) => {
+        console.warn("[Notif] Failed to mark tapped:", err);
+      });
     }
   }, [resolving, lastResponse]);
 

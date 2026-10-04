@@ -20,7 +20,8 @@ import {
 } from "@/components/SaveCard";
 import type { Save, SaveCategory, SourcePlatform } from "@/lib/database.types";
 import { appAlert } from "@/providers/AlertProvider";
-import { supabase } from "@/lib/supabase";
+import { listBoards } from "@/lib/boards";
+import { listSaves } from "@/lib/saves";
 import { useAuth } from "@/providers/AuthProvider";
 
 // ---------------------------------------------------------------------------
@@ -153,39 +154,17 @@ export default function ProfileScreen() {
     if (!session) return;
     setLoading(true);
 
-    const [savesRes, colRes] = await Promise.all([
-      supabase
-        .from("saves")
-        .select("*")
-        .eq("user_id", session.user.id)
-        .eq("archived", false)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("collections")
-        .select(`id, name, collection_saves(saves(thumbnail_url))`)
-        .eq("user_id", session.user.id)
-        .order("name"),
-    ]);
-
-    setAllSaves((savesRes.data as Save[]) ?? []);
-
-    type RawCol = {
-      id: string;
-      name: string;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      collection_saves: { saves: { thumbnail_url: string | null } | null }[];
-    };
-    setCustomBoards(
-      ((colRes.data ?? []) as unknown as RawCol[]).map((col) => ({
-        id: col.id,
-        name: col.name,
-        count: col.collection_saves?.length ?? 0,
-        thumbnails: (col.collection_saves ?? [])
-          .slice(0, 3)
-          .map((cs) => cs.saves?.thumbnail_url ?? null),
-      })),
-    );
-
+    try {
+      const [saves, boards] = await Promise.all([listSaves({ archived: false, limit: 500 }), listBoards()]);
+      setAllSaves(saves);
+      setCustomBoards(
+        boards
+          .filter((b) => b.role === "owner" && !b.source_category)
+          .map((b) => ({ id: b.id, name: b.name, count: b.save_count, thumbnails: b.thumbnails })),
+      );
+    } catch (err) {
+      console.warn("Failed to load profile data:", err);
+    }
     setLoading(false);
   }, [session]);
 
@@ -211,16 +190,8 @@ export default function ProfileScreen() {
     .sort((a, b) => b.count - a.count);
 
   // User display
-  const meta = session?.user?.user_metadata ?? {};
-  const displayName: string =
-    profile?.name ??
-    (meta.full_name as string | undefined) ??
-    (meta.name as string | undefined) ??
-    "You";
-  const avatarUrl: string | null =
-    (meta.avatar_url as string | undefined) ??
-    (meta.picture as string | undefined) ??
-    null;
+  const displayName: string = profile?.name ?? session?.user.name ?? "You";
+  const avatarUrl: string | null = profile?.avatar_url ?? session?.user.image ?? null;
   const initials = displayName
     .split(" ")
     .map((w) => w[0]?.toUpperCase() ?? "")

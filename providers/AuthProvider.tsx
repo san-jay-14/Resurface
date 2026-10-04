@@ -1,7 +1,10 @@
+import {
+  GoogleSignin,
+  isErrorWithCode,
+  isSuccessResponse,
+  statusCodes,
+} from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
-import { makeRedirectUri } from "expo-auth-session";
-import * as Linking from "expo-linking";
-import * as WebBrowser from "expo-web-browser";
 import {
   createContext,
   type ReactNode,
@@ -9,191 +12,184 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { Platform } from "react-native";
-import type { Session } from "@supabase/supabase-js";
 
+import { ApiError, setUnauthorizedHandler } from "@/lib/api";
+import { authClient } from "@/lib/auth";
 import type { UserProfile } from "@/lib/database.types";
-import { supabase } from "@/lib/supabase";
+import { env } from "@/lib/env";
+import { unregisterDeviceToken } from "@/lib/notifications";
+import { fetchProfile } from "@/lib/profile";
+import { getShareToken, provisionShareToken, revokeShareToken } from "@/lib/shareToken";
 
-// Required so the OAuth popup can hand control back to the app on Android.
-WebBrowser.maybeCompleteAuthSession();
+interface AuthSession {
+  user: { id: string; name: string; email: string; image?: string | null };
+}
 
 interface AuthContextValue {
-  session: Session | null;
+  session: AuthSession | null;
   profile: UserProfile | null;
   /** True until the initial session + profile load settles. */
   initializing: boolean;
-  /** True while a profile row fetch is in flight. */
-  profileLoading: boolean;
-  signInWithGoogle: () => Promise<void>;
-  signInWithApple: () => Promise<void>;
-  signInAsGuest: () => Promise<void>;
+  /** Resolves to false when the user dismissed the sign-in sheet. */
+  signInWithGoogle: () => Promise<boolean>;
+  signInWithApple: () => Promise<boolean>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  /** Replace the cached profile with a fresher copy (e.g. a PATCH /v1/me response). */
+  setProfile: (profile: UserProfile) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-/** Deep link the OAuth provider redirects back to. Explicit scheme so it
- *  works in dev builds and production (makeRedirectUri without args can
- *  return an exp:// URL in some environments). */
-const redirectTo = makeRedirectUri({ scheme: "resurface" });
+let googleConfigured = false;
+function configureGoogle() {
+  if (googleConfigured) return;
+  if (!env.googleWebClientId) {
+    throw new Error("EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is not set.");
+  }
+  // The WEB client id is the token audience the API verifies; Android picks its own client by SHA-1.
+  GoogleSignin.configure({ webClientId: env.googleWebClientId });
+  googleConfigured = true;
+}
 
-/** Exchange the ?code= from an OAuth redirect URL for a Supabase session. */
-async function createSessionFromUrl(url: string) {
-  const { queryParams } = Linking.parse(url);
-  const code = queryParams?.code;
-  if (typeof code === "string") {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) throw error;
+/** Throw a readable error for a failed Better Auth call. */
+function assertOk(result: { error?: { message?: string; status?: number } | null }) {
+  if (result.error) {
+    throw new Error(result.error.message ?? "Sign-in failed. Please try again.");
   }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const { data, isPending } = authClient.useSession();
+  const session = (data as AuthSession | null | undefined) ?? null;
+  const userId = session?.user.id ?? null;
+
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [initializing, setInitializing] = useState(true);
-  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileReady, setProfileReady] = useState(false);
 
-  const loadProfile = useCallback(async (userId: string) => {
-    setProfileLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", userId)
-        .maybeSingle();
-      if (error) {
-        console.warn("Failed to load profile:", error.message);
-        setProfile(null);
-        return;
-      }
-      setProfile((data as UserProfile) ?? null);
-    } finally {
-      setProfileLoading(false);
+  // Profile follows the session. `profileReady` keeps `initializing` true until the first
+  // profile fetch for a signed-in user settles, so the routing gate never sees "no profile yet".
+  useEffect(() => {
+    if (isPending) return;
+    if (!userId) {
+      setProfile(null);
+      setProfileReady(true);
+      return;
     }
-  }, []);
-
-  // Initial session + auth state subscription.
-  useEffect(() => {
-    let mounted = true;
-
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!mounted) return;
-      setSession(data.session);
-      if (data.session) await loadProfile(data.session.user.id);
-      setInitializing(false);
-    });
-
-    const { data: sub } = supabase.auth.onAuthStateChange(
-      async (_event, nextSession) => {
-        setSession(nextSession);
-        if (nextSession) {
-          await loadProfile(nextSession.user.id);
-        } else {
-          setProfile(null);
-        }
-      },
-    );
-
+    let cancelled = false;
+    setProfileReady(false);
+    fetchProfile()
+      .then((p) => !cancelled && setProfile(p))
+      .catch((err: unknown) => {
+        console.warn("Failed to load profile:", err);
+        if (!cancelled) setProfile(null);
+      })
+      .finally(() => !cancelled && setProfileReady(true));
     return () => {
-      mounted = false;
-      sub.subscription.unsubscribe();
+      cancelled = true;
     };
-  }, [loadProfile]);
+  }, [isPending, userId]);
 
-  // On Android with singleTask launch mode (required by expo-share-intent),
-  // the OAuth deep link arrives as a new Intent rather than being caught by
-  // openAuthSessionAsync. This listener handles that path so the ?code= is
-  // always exchanged for a session regardless of how Android delivers the link.
+  // The Android share worker authenticates with a scoped token; make sure one exists.
+  const provisioned = useRef<string | null>(null);
   useEffect(() => {
-    // App opened cold via the deep link (rare but possible)
-    Linking.getInitialURL().then((url) => {
-      if (url?.includes("code=")) void createSessionFromUrl(url);
-    });
+    if (!userId || provisioned.current === userId) return;
+    provisioned.current = userId;
+    void (async () => {
+      try {
+        if (!(await getShareToken())) await provisionShareToken();
+      } catch (err) {
+        provisioned.current = null;
+        console.warn("Failed to provision share token:", err);
+      }
+    })();
+  }, [userId]);
 
-    // App already running and brought to foreground via the deep link
-    const sub = Linking.addEventListener("url", ({ url }) => {
-      if (url.includes("code=")) void createSessionFromUrl(url);
+  // The API rejected our session (expired or revoked elsewhere): drop it locally.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      void authClient.signOut().catch(() => undefined);
     });
-
-    return () => sub.remove();
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    if (session) await loadProfile(session.user.id);
-  }, [session, loadProfile]);
+    if (!userId) return;
+    setProfile(await fetchProfile());
+  }, [userId]);
 
   const signInWithGoogle = useCallback(async () => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo, skipBrowserRedirect: true },
-    });
-    if (error) throw error;
-    if (!data?.url) throw new Error("No OAuth URL returned from Supabase.");
-
-    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-    if (result.type === "success") {
-      await createSessionFromUrl(result.url);
+    configureGoogle();
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const response = await GoogleSignin.signIn();
+      if (!isSuccessResponse(response)) return false; // user cancelled
+      const idToken = response.data.idToken;
+      if (!idToken) throw new Error("Google did not return an identity token.");
+      assertOk(await authClient.signIn.social({ provider: "google", idToken: { token: idToken } }));
+      return true;
+    } catch (err) {
+      if (isErrorWithCode(err) && err.code === statusCodes.SIGN_IN_CANCELLED) return false;
+      throw err;
     }
-    // result.type === "cancel" | "dismiss": user backed out — no-op.
   }, []);
 
   const signInWithApple = useCallback(async () => {
     if (Platform.OS !== "ios") {
       throw new Error("Apple Sign-In is only available on iOS.");
     }
-    const credential = await AppleAuthentication.signInAsync({
-      requestedScopes: [
-        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-        AppleAuthentication.AppleAuthenticationScope.EMAIL,
-      ],
-    });
+    let credential: AppleAuthentication.AppleAuthenticationCredential;
+    try {
+      credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+    } catch (err) {
+      if ((err as { code?: string }).code === "ERR_REQUEST_CANCELED") return false;
+      throw err;
+    }
     if (!credential.identityToken) {
       throw new Error("Apple did not return an identity token.");
     }
-    const { error } = await supabase.auth.signInWithIdToken({
-      provider: "apple",
-      token: credential.identityToken,
-    });
-    if (error) throw error;
-  }, []);
-
-  const signInAsGuest = useCallback(async () => {
-    const { error } = await supabase.auth.signInAnonymously();
-    if (error) throw error;
+    assertOk(
+      await authClient.signIn.social({
+        provider: "apple",
+        idToken: { token: credential.identityToken },
+      }),
+    );
+    return true;
   }, []);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    // Best effort and BEFORE the session goes away (these calls need it): a failure must never
+    // trap the user in a signed-in state.
+    await Promise.allSettled([revokeShareToken(), unregisterDeviceToken()]);
+    if (googleConfigured) await GoogleSignin.signOut().catch(() => undefined);
+    await authClient.signOut();
+    provisioned.current = null;
     setProfile(null);
   }, []);
+
+  const initializing = isPending || !profileReady;
 
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
       profile,
       initializing,
-      profileLoading,
       signInWithGoogle,
       signInWithApple,
-      signInAsGuest,
       signOut,
       refreshProfile,
+      setProfile,
     }),
-    [
-      session,
-      profile,
-      initializing,
-      profileLoading,
-      signInWithGoogle,
-      signInWithApple,
-      signInAsGuest,
-      signOut,
-      refreshProfile,
-    ],
+    [session, profile, initializing, signInWithGoogle, signInWithApple, signOut, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -203,4 +199,9 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within an AuthProvider");
   return ctx;
+}
+
+/** True when an error is the API reporting `code` (e.g. `invalid_invite_code`). */
+export function isApiError(err: unknown, code?: string): err is ApiError {
+  return err instanceof ApiError && (code === undefined || err.code === code);
 }

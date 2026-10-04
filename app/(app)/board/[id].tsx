@@ -17,11 +17,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { InviteSheet } from "@/components/InviteSheet";
 import { PlacesMap } from "@/components/PlacesMap";
 import { SaveListRow } from "@/components/SaveCard";
-import type { Collection, CollectionMember, CollectionSaveReaction, PlaceSave, Save } from "@/lib/database.types";
-import { shareCollection } from "@/lib/boardSharing";
-import { fetchCollectionMapSaves } from "@/lib/saves";
+import {
+  deleteBoard as deleteBoardApi,
+  fetchBoardMapSaves,
+  getBoard,
+  leaveBoard as leaveBoardApi,
+  removeReaction,
+  setReaction,
+  shareBoard,
+} from "@/lib/boards";
+import type { BoardMember, BoardReaction, BoardSummary, PlaceSave, Save } from "@/lib/database.types";
+import { updateSave } from "@/lib/saves";
 import { appAlert } from "@/providers/AlertProvider";
-import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
 type SortOption = "recent" | "oldest";
@@ -98,9 +105,9 @@ export default function BoardDetail() {
   const { session } = useAuth();
 
   const [saves, setSaves] = useState<Save[]>([]);
-  const [board, setBoard] = useState<Collection | null>(null);
-  const [members, setMembers] = useState<CollectionMember[]>([]);
-  const [reactions, setReactions] = useState<CollectionSaveReaction[]>([]);
+  const [board, setBoard] = useState<BoardSummary | null>(null);
+  const [members, setMembers] = useState<BoardMember[]>([]);
+  const [reactions, setReactions] = useState<BoardReaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sort, setSort] = useState<SortOption>("recent");
@@ -113,40 +120,21 @@ export default function BoardDetail() {
     if (!id || !session) return;
     if (!quiet) setLoading(true);
 
-    const [savesRes, boardRes, membersRes, reactionsRes] = await Promise.all([
-      supabase
-        .from("collection_saves")
-        .select("saves(*)")
-        .eq("collection_id", id),
-      supabase
-        .from("collections")
-        .select("*")
-        .eq("id", id)
-        .single(),
-      supabase
-        .from("collection_members")
-        .select("*")
-        .eq("collection_id", id),
-      supabase
-        .from("collection_save_reactions")
-        .select("*")
-        .eq("collection_id", id),
-    ]);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const items = ((savesRes.data ?? []) as any[])
-      .map((r) => r.saves as Save)
-      .filter(Boolean);
-    items.sort((a, b) =>
-      sort === "recent"
-        ? new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        : new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-    );
-
-    setSaves(items);
-    setBoard(boardRes.data as Collection);
-    setMembers((membersRes.data as CollectionMember[]) ?? []);
-    setReactions((reactionsRes.data as CollectionSaveReaction[]) ?? []);
+    try {
+      const detail = await getBoard(String(id));
+      // Other members' saves arrive as the public subset of fields; the cards only read those.
+      const items = [...(detail.saves as Save[])].sort((a, b) =>
+        sort === "recent"
+          ? new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          : new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      );
+      setSaves(items);
+      setBoard(detail.board);
+      setMembers(detail.members);
+      setReactions(detail.reactions);
+    } catch (err) {
+      console.warn("Failed to load board:", err);
+    }
     setLoading(false);
     setRefreshing(false);
   }, [id, session, sort]);
@@ -159,8 +147,12 @@ export default function BoardDetail() {
     if (!id || !board?.requires_location) { setMapSaves([]); return; }
     void (async () => {
       setMapLoading(true);
-      const { mapped } = await fetchCollectionMapSaves(id);
-      setMapSaves(mapped);
+      try {
+        const { mapped } = await fetchBoardMapSaves(String(id));
+        setMapSaves(mapped);
+      } catch {
+        setMapSaves([]);
+      }
       setMapLoading(false);
     })();
   }, [id, board?.requires_location, saves.length]);
@@ -173,45 +165,54 @@ export default function BoardDetail() {
   })();
 
   const handleFavorite = async (save: Save) => {
+    if (save.user_id !== session?.user.id) return; // only your own saves
     const next = !save.is_favorite;
     setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: next } : s));
-    const { error } = await supabase.from("saves").update({ is_favorite: next }).eq("id", save.id);
-    if (error) setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: !next } : s));
+    try {
+      await updateSave(save.id, { is_favorite: next });
+    } catch {
+      setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: !next } : s));
+    }
   };
 
   const handleReaction = async (saveId: string, reaction: "in" | "pass") => {
     if (!session) return;
-    const existing = reactions.find((r) => r.save_id === saveId && r.user_id === session.user.id);
-    if (existing?.reaction === reaction) {
-      setReactions((prev) => prev.filter((r) => r.id !== existing.id));
-      await supabase.from("collection_save_reactions").delete().eq("id", existing.id);
-    } else {
-      const newReaction = { collection_id: id, save_id: saveId, user_id: session.user.id, reaction };
-      const { data } = await supabase
-        .from("collection_save_reactions")
-        .upsert(newReaction, { onConflict: "collection_id,save_id,user_id" })
-        .select()
-        .single();
-      if (existing) {
-        setReactions((prev) => prev.map((r) => r.id === existing.id ? (data as CollectionSaveReaction) : r));
-      } else {
-        setReactions((prev) => [...prev, data as CollectionSaveReaction]);
+    const me = session.user.id;
+    const before = reactions;
+    const existing = reactions.find((r) => r.save_id === saveId && r.user_id === me);
+    try {
+      if (existing?.reaction === reaction) {
+        setReactions((prev) => prev.filter((r) => r !== existing));
+        await removeReaction(String(id), saveId);
+        return;
       }
+      const mine: BoardReaction = {
+        save_id: saveId, user_id: me, reaction, created_at: new Date().toISOString(),
+      };
+      const next = [...reactions.filter((r) => r !== existing), mine];
+      setReactions(next);
+      await setReaction(String(id), saveId, reaction);
 
       // Check if all members reacted "in"
-      const saveReactions = [...reactions.filter((r) => r.save_id === saveId && r.id !== existing?.id), data as CollectionSaveReaction];
-      const inCount = saveReactions.filter((r) => r.reaction === "in").length;
+      const inCount = next.filter((r) => r.save_id === saveId && r.reaction === "in").length;
       if (inCount >= members.length && members.length >= 2) {
         appAlert("Everyone's in! 🙌", "Time to make it happen?");
       }
+    } catch {
+      setReactions(before);
+      appAlert("Couldn't update", "Check your connection and try again.");
     }
   };
 
   const generateInviteCode = async () => {
-    if (!id || !session) return;
-    const updated = await shareCollection(id, session.user.id);
-    setBoard(updated);
-    setInviteVisible(true);
+    if (!id || !board) return;
+    try {
+      const updated = await shareBoard(String(id));
+      setBoard({ ...board, ...updated });
+      setInviteVisible(true);
+    } catch (err) {
+      appAlert("Couldn't share", err instanceof Error ? err.message : "Try again.");
+    }
   };
 
   const deleteBoard = () => {
@@ -223,7 +224,12 @@ export default function BoardDetail() {
         {
           text: "Delete", style: "destructive",
           onPress: async () => {
-            await supabase.from("collections").delete().eq("id", id);
+            try {
+              await deleteBoardApi(String(id));
+            } catch (err) {
+              appAlert("Couldn't delete", err instanceof Error ? err.message : "Try again.");
+              return;
+            }
             router.back();
           },
         },
@@ -232,7 +238,7 @@ export default function BoardDetail() {
   };
 
   const handleMoreOptions = () => {
-    const isOwner = board?.owner_id === session?.user.id || !board?.owner_id;
+    const isOwner = board?.role === "owner";
     const options = [
       ...(board?.is_shared
         ? [{ text: "Show invite code", onPress: () => setInviteVisible(true) }]
@@ -248,12 +254,12 @@ export default function BoardDetail() {
   };
 
   const leaveBoard = async () => {
-    if (!session) return;
-    await supabase
-      .from("collection_members")
-      .delete()
-      .eq("collection_id", id)
-      .eq("user_id", session.user.id);
+    try {
+      await leaveBoardApi(String(id));
+    } catch (err) {
+      appAlert("Couldn't leave", err instanceof Error ? err.message : "Try again.");
+      return;
+    }
     router.back();
   };
 

@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WrappedCard } from "@/components/WrappedCard";
 import type { WrappedHistory } from "@/lib/database.types";
 import { appAlert } from "@/providers/AlertProvider";
-import { supabase } from "@/lib/supabase";
+import { getWrapped } from "@/lib/wrapped";
 import { useAuth } from "@/providers/AuthProvider";
 
 export default function WrappedCardScreen() {
@@ -31,13 +31,11 @@ export default function WrappedCardScreen() {
   useEffect(() => {
     void (async () => {
       if (!id || !session) return;
-      const { data } = await supabase
-        .from("wrapped_history")
-        .select("*")
-        .eq("id", id)
-        .eq("user_id", session.user.id)
-        .single();
-      setWrapped(data as WrappedHistory);
+      try {
+        setWrapped(await getWrapped(String(id)));
+      } catch {
+        setWrapped(null);
+      }
       setLoading(false);
     })();
   }, [id, session]);

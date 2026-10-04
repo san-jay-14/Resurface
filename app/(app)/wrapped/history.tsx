@@ -14,9 +14,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { WrappedHistory } from "@/lib/database.types";
 import { WrappedCard } from "@/components/WrappedCard";
 import { appAlert } from "@/providers/AlertProvider";
-import { supabase } from "@/lib/supabase";
+import { ApiError } from "@/lib/api";
+import { generateWrapped, listWrapped } from "@/lib/wrapped";
 import { useAuth } from "@/providers/AuthProvider";
-import { env } from "@/lib/env";
 
 export default function WrappedHistoryScreen() {
   const { session } = useAuth();
@@ -29,12 +29,11 @@ export default function WrappedHistoryScreen() {
 
   const fetchHistory = useCallback(async () => {
     if (!session) return;
-    const { data } = await supabase
-      .from("wrapped_history")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .order("created_at", { ascending: false });
-    setWrappeds((data as WrappedHistory[]) ?? []);
+    try {
+      setWrappeds(await listWrapped());
+    } catch (err) {
+      console.warn("Failed to load wrappeds:", err);
+    }
     setLoading(false);
   }, [session]);
 
@@ -44,25 +43,11 @@ export default function WrappedHistoryScreen() {
     if (!session) return;
     setGenerating(true);
     try {
-      const res = await fetch(
-        `${env.supabaseUrl}/functions/v1/generate-wrapped`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ user_id: session.user.id }),
-        },
-      );
-      const json = await res.json() as { ok: boolean; error?: string };
-      if (!json.ok) {
-        appAlert("Couldn't generate", json.error ?? "Try again later.");
-        return;
-      }
+      await generateWrapped();
       await fetchHistory();
-    } catch {
-      appAlert("Couldn't connect", "Try again later.");
+    } catch (err) {
+      if (err instanceof ApiError && err.status !== 0) appAlert("Couldn't generate", err.message);
+      else appAlert("Couldn't connect", "Try again later.");
     } finally {
       setGenerating(false);
     }

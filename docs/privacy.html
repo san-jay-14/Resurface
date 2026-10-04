@@ -105,7 +105,9 @@
       <tr><th>Provider</th><th>Purpose</th><th>Data shared</th></tr>
     </thead>
     <tbody>
-      <tr><td>Supabase</td><td>Database, auth, storage, backend functions</td><td>Account, saved content, profile</td></tr>
+      <tr><td>Neon</td><td>Database hosting</td><td>Account, saved content, profile</td></tr>
+      <tr><td>Render</td><td>API hosting</td><td>Account, saved content, profile (in transit)</td></tr>
+      <tr><td>Cloudflare (R2)</td><td>Image storage</td><td>Profile photo, bug-report screenshots</td></tr>
       <tr><td>Expo</td><td>Push notification delivery</td><td>Push token</td></tr>
       <tr><td>Google</td><td>Sign-in, maps &amp; geocoding</td><td>Auth token, place/location queries</td></tr>
       <tr><td>Apple</td><td>Sign-in</td><td>Auth token</td></tr>
@@ -117,10 +119,10 @@
   <p>Each provider processes data under its own privacy policy.</p>
 
   <h2>Data retention &amp; deletion</h2>
-  <p>Your data is kept while your account is active. You can request deletion of your account and all associated data at any time by contacting us at the email above. Soft-deleted saves are recoverable for 30 days, then permanently removed.</p>
+  <p>Your data is kept while your account is active. You can delete your account and all associated data at any time from within the app, or by contacting us at the email above. Soft-deleted saves are recoverable for 30 days, then permanently removed.</p>
 
   <h2>Security</h2>
-  <p>Data is stored in Supabase and protected by row-level security so that you can only access your own records. Auth tokens are stored in the device secure store.</p>
+  <p>Data is stored in a managed PostgreSQL database and every request is authorised on our servers so that you can only access your own records (plus boards you have joined). Connections use HTTPS. Auth tokens are stored in the device secure store.</p>
 
   <h2>Children</h2>
   <p>Dibs is not directed at children under 13 and we do not knowingly collect their data.</p>

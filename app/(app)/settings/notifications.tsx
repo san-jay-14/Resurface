@@ -113,7 +113,7 @@ export default function NotificationPreferencesScreen() {
   const patchPrefs = async (patch: Partial<NotificationPrefs>) => {
     if (!session) return;
     const next = { ...prefs, ...patch };
-    await updateProfile(session.user.id, { notification_prefs: next });
+    await updateProfile({ notification_prefs: next });
     await refreshProfile();
   };
 

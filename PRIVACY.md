@@ -47,7 +47,9 @@ We share the minimum data necessary with providers that operate the app:
 
 | Provider           | Purpose                                    | Data shared                        |
 | ------------------ | ------------------------------------------ | ---------------------------------- |
-| Supabase           | Database, auth, storage, backend functions | Account, saved content, profile    |
+| Neon               | Database hosting                           | Account, saved content, profile    |
+| Render             | API hosting                                | Account, saved content (in transit) |
+| Cloudflare (R2)    | Image storage                              | Profile photo, bug-report screenshots |
 | Expo               | Push notification delivery                 | Push token                         |
 | Google             | Sign-in, maps & geocoding                  | Auth token, place/location queries |
 | Apple              | Sign-in                                    | Auth token                         |
@@ -60,13 +62,15 @@ Each provider processes data under its own privacy policy.
 ## Data retention & deletion
 
 Your data is kept while your account is active. You can request deletion of your
-account and all associated data at any time by contacting us at the email above.
+account and all associated data at any time from within the app, or by
+contacting us at the email above.
 Soft-deleted saves are recoverable for 30 days, then permanently removed.
 
 ## Security
 
-Data is stored in Supabase and protected by row-level security so that you can
-only access your own records. Auth tokens are stored in the device secure store.
+Data is stored in a managed PostgreSQL database and every request is authorised
+on our servers so that you can only access your own records (plus boards you have
+joined). Connections use HTTPS. Auth tokens are stored in the device secure store.
 
 ## Children
 

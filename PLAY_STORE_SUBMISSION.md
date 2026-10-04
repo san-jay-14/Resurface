@@ -29,8 +29,9 @@ the Play Console / Google Cloud.
 - **google-services.json** is committed and matches `com.resurface.app`. Confirm
   it's the *production* Firebase project.
 - **Google / Apple OAuth**: the release build is signed with the EAS upload key.
-  Add that key's SHA-1/SHA-256 to your Google OAuth client, and add Supabase
-  Auth redirect URLs, or Google sign-in will fail in the store build.
+  Add that key's SHA-1/SHA-256 to your Google OAuth **Android** client (the app
+  signs in natively and the API verifies the token against the **Web** client id),
+  or Google sign-in will fail in the store build.
 
 ## 3. Build & submit commands [you]
 

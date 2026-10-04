@@ -9,14 +9,7 @@ import { CategoryPicker } from "@/components/CategoryPicker";
 import { Screen } from "@/components/Screen";
 import type { SaveCategory } from "@/lib/database.types";
 import { ensureAndroidChannel } from "@/lib/notifications";
-import {
-  createManualSave,
-  createPendingSave,
-  detectPlatform,
-  isAutoPlatform,
-  triggerEnrich,
-} from "@/lib/saves";
-import { supabase } from "@/lib/supabase";
+import { createManualSave, detectPlatform, enqueueSave } from "@/lib/saves";
 import { useAuth } from "@/providers/AuthProvider";
 
 type Mode = "detecting" | "auto" | "manual";
@@ -71,49 +64,21 @@ export default function ShareScreen() {
       return;
     }
 
-    const platform = detectPlatform(url);
-
-    if (platform === "instagram") {
-      setMode("auto");
-      setSaveState("saving");
-      void (async () => {
-        try {
-          const save = await createPendingSave({
-            userId: session.user.id,
-            url,
-            sourcePlatform: "instagram",
-          });
-          void supabase.functions.invoke("scrape-instagram", {
-            body: { save_id: save.id, url },
-          });
-          void notifySaved();
-          resetShareIntent();
-          router.replace("/(app)");
-        } catch {
-          setSaveState("error");
-          setErrorMsg("Couldn't save this link. Try again.");
-        }
-      })();
-      return;
-    }
-
-    if (isAutoPlatform(platform)) {
-      setMode("auto");
-      setSaveState("saving");
-      createPendingSave({ userId: session.user.id, url, sourcePlatform: platform })
-        .then((save) => {
-          void triggerEnrich(save.id);
-          void notifySaved();
-          resetShareIntent();
-          router.replace("/(app)");
-        })
-        .catch(() => {
-          setSaveState("error");
-          setErrorMsg("Couldn't save this link. Try again.");
-        });
-    } else {
-      setMode("manual");
-    }
+    // One entry point for every platform. If the server rejects the link (or is
+    // unreachable) fall back to the manual popup so the share is never lost.
+    setMode("auto");
+    setSaveState("saving");
+    void (async () => {
+      try {
+        await enqueueSave(url);
+        void notifySaved();
+        resetShareIntent();
+        router.replace("/(app)");
+      } catch {
+        setSaveState("idle");
+        setMode("manual");
+      }
+    })();
   }, [shareIntent, session, router, resetShareIntent]);
 
   async function handleManualSave(asUnsorted: boolean) {
@@ -125,7 +90,6 @@ export default function ShareScreen() {
     setSaveState("saving");
     try {
       await createManualSave({
-        userId: session.user.id,
         category: chosenCategory,
         sourceUrl: url,
         sourcePlatform: platform,

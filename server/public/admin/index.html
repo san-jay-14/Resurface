@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dibs. pipeline</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --ink: #1c1b19; --muted: #6b6860; --line: #e4e1d8;
+    --ok: #1f7a4d; --ok-bg: #e3f3ea; --err: #b3261e; --err-bg: #fbe6e4;
+    --warn: #8a5a00; --warn-bg: #fdf1d6; --info: #3a5a8c; --info-bg: #e6edf8; --skip: #77746c; --skip-bg: #eeece6;
+    --accent: #1c1b19; --accent-ink: #fff; --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151513; --panel: #1f1e1b; --ink: #ecebe6; --muted: #98958b; --line: #34322d;
+      --ok: #6fd3a0; --ok-bg: #16301f; --err: #ff8f86; --err-bg: #3a1a18;
+      --warn: #f0c36a; --warn-bg: #36290c; --info: #8db4f0; --info-bg: #182337; --skip: #a09d92; --skip-bg: #2a2925;
+      --accent: #ecebe6; --accent-ink: #151513;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+  h1 { font-size: 16px; margin: 0; letter-spacing: -.01em; }
+  h1 span { color: var(--muted); font-weight: 400; }
+  nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  nav button { background: none; border: 0; padding: 6px 12px; border-radius: 8px; color: var(--muted); font: inherit; cursor: pointer; }
+  nav button[aria-current="true"] { background: var(--accent); color: var(--accent-ink); }
+  nav button:hover:not([aria-current="true"]) { background: var(--skip-bg); color: var(--ink); }
+  .spacer { flex: 1; }
+  main { padding: 20px; max-width: 1400px; margin: 0 auto; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+  .grid { display: grid; gap: 16px; }
+  .g4 { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .g2 { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
+  .kpi { font-size: 28px; font-weight: 650; letter-spacing: -.02em; }
+  .kpi small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+  .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr.click { cursor: pointer; } tr.click:hover td { background: var(--skip-bg); } tr.sel td { background: var(--info-bg); }
+  .mono { font-family: var(--mono); font-size: 12px; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .p-ok { background: var(--ok-bg); color: var(--ok); } .p-error, .p-dead { background: var(--err-bg); color: var(--err); }
+  .p-warn { background: var(--warn-bg); color: var(--warn); } .p-info, .p-running { background: var(--info-bg); color: var(--info); }
+  .p-skip, .p-queued, .p-done { background: var(--skip-bg); color: var(--skip); } .p-done { background: var(--ok-bg); color: var(--ok); }
+  button.btn, select, input[type=text], input[type=password], input[type=url] { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  button.btn { cursor: pointer; } button.btn:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.danger { color: var(--err); }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .split { display: grid; grid-template-columns: minmax(340px, 5fr) 7fr; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .split { grid-template-columns: 1fr; } header { padding: 10px 14px; } main { padding: 14px; } }
+  .timeline { list-style: none; margin: 0; padding: 0; }
+  .timeline li { display: grid; grid-template-columns: 22px 150px 1fr auto; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); align-items: start; }
+  .ico { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; margin-top: 1px; }
+  .i-ok { background: var(--ok-bg); color: var(--ok); } .i-error { background: var(--err-bg); color: var(--err); }
+  .i-warn { background: var(--warn-bg); color: var(--warn); } .i-info { background: var(--info-bg); color: var(--info); } .i-skip { background: var(--skip-bg); color: var(--skip); }
+  .step { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+  .msg { word-break: break-word; } .msg.err { color: var(--err); }
+  .dur { color: var(--muted); font-family: var(--mono); font-size: 11px; white-space: nowrap; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 11px; } pre { margin: 4px 0 0; padding: 8px; background: var(--skip-bg); border-radius: 6px; overflow: auto; font-size: 11px; }
+  .bar { height: 8px; background: var(--skip-bg); border-radius: 4px; overflow: hidden; } .bar > i { display: block; height: 100%; background: var(--info); }
+  .empty { color: var(--muted); padding: 24px; text-align: center; }
+  .banner { padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; background: var(--err-bg); color: var(--err); }
+  .banner.ok { background: var(--ok-bg); color: var(--ok); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--skip); display: inline-block; } .dot.live { background: var(--ok); }
+  .hidden { display: none !important; }
+  label.sw { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  #connect { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  #connect input { width: 260px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>dibs. <span>enrichment pipeline</span></h1>
+  <nav id="nav"></nav>
+  <div class="spacer"></div>
+  <label class="sw"><input type="checkbox" id="auto" checked> auto-refresh</label>
+  <span class="dot" id="live" title="connection"></span>
+  <button class="btn" id="cfgBtn">Connection</button>
+</header>
+
+<main>
+  <div id="banner" class="banner hidden"></div>
+
+  <section id="connectPanel" class="panel hidden" style="margin-bottom:16px">
+    <h2>Connection</h2>
+    <form id="connect">
+      <input type="password" id="token" placeholder="ADMIN_DASHBOARD_TOKEN" autocomplete="off" required>
+      <label class="sw"><input type="checkbox" id="remember"> remember on this device</label>
+      <button class="btn primary" type="submit">Connect</button>
+    </form>
+    <div class="sub" style="margin-top:8px">The token (ADMIN_DASHBOARD_TOKEN) is sent only to this server, as an <code>x-admin-token</code> header.</div>
+  </section>
+
+  <div id="view"></div>
+</main>
+
+<script>
+"use strict";
+// ---------- tiny DOM helper (everything user-controlled goes through textContent) ----------
+const h = (tag, attrs = {}, ...kids) => {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === false || v == null) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "dataset") Object.assign(el.dataset, v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kids.flat()) if (k != null && k !== false) el.append(k.nodeType ? k : document.createTextNode(String(k)));
+  return el;
+};
+const $ = (id) => document.getElementById(id);
+const ago = (t) => { if (!t) return "—"; const s = (Date.now() - new Date(t)) / 1000; if (s < 0) { const f = -s; return "in " + (f < 90 ? Math.round(f) + "s" : f < 5400 ? Math.round(f / 60) + "m" : (f / 3600).toFixed(1) + "h"); }
+  return s < 90 ? Math.round(s) + "s ago" : s < 5400 ? Math.round(s / 60) + "m ago" : s < 129600 ? (s / 3600).toFixed(1) + "h ago" : Math.round(s / 86400) + "d ago"; };
+const clock = (t) => new Date(t).toLocaleTimeString([], { hour12: false });
+const short = (s, n = 14) => (s && s.length > n ? s.slice(0, n) + "…" : s || "—");
+const pill = (s, text) => h("span", { class: "pill p-" + s }, text ?? s);
+const ICON = { ok: "✓", error: "✕", warn: "!", info: "i", skip: "–" };
+
+// ---------- connection ----------
+const API_URL = "/admin/api";
+const store = () => (localStorage.getItem("dibs.token") ? localStorage : sessionStorage);
+const conf = () => ({ url: API_URL, token: store().getItem("dibs.token") || "" });
+let state = { tab: "overview", selRun: null, runFilter: { only_errors: false, platform: "", q: "" }, jobFilter: "" };
+
+async function api(action, params = {}) {
+  const { url, token } = conf();
+  if (!url || !token) throw new Error("Not connected");
+  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json", "x-admin-token": token }, body: JSON.stringify({ action, ...params }) });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || "HTTP " + r.status);
+  return body;
+}
+function banner(msg, ok) { const b = $("banner"); b.textContent = msg || ""; b.className = "banner" + (ok ? " ok" : "") + (msg ? "" : " hidden"); }
+
+// ---------- views ----------
+const TABS = [["overview", "Overview"], ["runs", "Runs & steps"], ["jobs", "Jobs"], ["calls", "Provider calls"], ["dead", "Dead letter"], ["try", "Try a URL"]];
+function renderNav() {
+  const nav = $("nav"); nav.replaceChildren(...TABS.map(([id, label]) => h("button", { "aria-current": String(state.tab === id), onclick: () => { state.tab = id; renderNav(); refresh(); } }, label)));
+}
+
+async function viewOverview(root) {
+  const o = await api("overview");
+  const tot = (x) => Object.values(x).reduce((a, b) => a + b, 0);
+  const kpi = (label, val, sub) => h("div", { class: "panel" }, h("div", { class: "sub" }, label), h("div", { class: "kpi" }, val), sub ? h("div", { class: "sub" }, sub) : null);
+  const hit = (step) => o.metrics.cacheHitRates.find((r) => r.step === step);
+  const ttc = o.metrics.timeToCategorized;
+  const rungTotal = o.metrics.rungs.reduce((a, r) => a + Number(r.saves), 0) || 1;
+
+  root.replaceChildren(
+    h("div", { class: "grid g4" },
+      kpi("Jobs queued", o.jobs.queued, `${o.jobs.running} running · ${o.jobs.done} done`),
+      kpi("Dead-lettered", o.jobs.dead, o.jobs.dead ? "needs attention" : "none"),
+      kpi("Saves categorized", o.saves.done, `${o.saves.processing} sorting · ${o.saves.needs_review} need review`),
+      kpi("Steps, last 24h", o.events24h.ok, `${o.events24h.error} errors · ${o.events24h.warn} warnings`),
+      kpi("Analysis cache hit", hit("analysis_cache") ? hit("analysis_cache").hit_pct + "%" : "—", hit("analysis_cache") ? `${hit("analysis_cache").hits} hits / ${hit("analysis_cache").misses} misses (7d)` : "no data yet"),
+      kpi("Post cache hit", hit("post_cache") ? hit("post_cache").hit_pct + "%" : "—", hit("post_cache") ? `${hit("post_cache").hits} hits / ${hit("post_cache").misses} misses (7d)` : "no data yet"),
+      kpi("Share → categorized p50 / p95", ttc && ttc.n > 0 ? `${(+ttc.p50_sec).toFixed(1)}s / ${(+ttc.p95_sec).toFixed(1)}s` : "—", ttc ? `${ttc.n} saves (7d), target p95 < 6s on a miss` : ""),
+      kpi("Cost per resolved save", o.metrics.cost && o.metrics.cost.resolved_7d > 0 ? "$" + (o.metrics.cost.spend_7d / o.metrics.cost.resolved_7d).toFixed(4) : "—", o.metrics.cost ? `$${(+o.metrics.cost.spend_7d).toFixed(3)} over ${o.metrics.cost.resolved_7d} saves (7d)` : "")),
+    h("div", { class: "grid g2", style: "margin-top:16px" },
+      h("div", { class: "panel" }, h("h2", {}, "Providers & circuit breakers"),
+        o.providers.length ? h("table", {}, h("thead", {}, h("tr", {}, ["Provider", "State", "Fails", "Spend today", "Last error", ""].map((x) => h("th", {}, x)))),
+          h("tbody", {}, o.providers.map((p) => h("tr", {},
+            h("td", { class: "mono" }, p.provider),
+            h("td", {}, p.is_open ? pill("error", "OPEN · " + ago(p.open_until)) : pill("ok", "closed")),
+            h("td", {}, p.consecutive_failures),
+            h("td", { class: "mono" }, (+p.spend_today).toFixed(4)),
+            h("td", { class: "msg" }, p.last_error ? short(p.last_error, 60) : "—"),
+            h("td", {}, p.is_open || p.consecutive_failures ? h("button", { class: "btn", onclick: async () => { await api("reset_breaker", { provider: p.provider }); refresh(); } }, "reset") : null))))) : h("div", { class: "empty" }, "No provider calls yet.")),
+      h("div", { class: "panel" }, h("h2", {}, "Which rung resolved each post"),
+        o.metrics.rungs.length ? o.metrics.rungs.map((r) => h("div", { style: "margin-bottom:10px" },
+          h("div", { class: "row" }, h("span", { class: "mono" }, r.resolved_by ?? "—"), h("span", { class: "spacer" }), h("span", { class: "sub" }, `${r.saves} (${Math.round(100 * r.saves / rungTotal)}%)`)),
+          h("div", { class: "bar" }, h("i", { style: `width:${100 * r.saves / rungTotal}%` })))) : h("div", { class: "empty" }, "No analyses yet."),
+        h("div", { class: "sub", style: "margin-top:8px" }, `threshold ${o.config.threshold} · prompt v${o.config.promptVersion} · ${o.config.model}`))),
+    h("div", { class: "grid g2", style: "margin-top:16px" },
+      h("div", { class: "panel" }, h("h2", {}, "Feature flags"),
+        o.flags.map((f) => h("label", { class: "sw", style: "display:flex;margin:6px 0" },
+          h("input", { type: "checkbox", checked: f.enabled, onchange: async (e) => { await api("set_flag", { key: f.key, enabled: e.target.checked }); refresh(); } }),
+          h("span", { class: "mono" }, f.key), h("span", { class: "sub" }, f.enabled ? "on" : "off")))),
+      h("div", { class: "panel" }, h("h2", {}, "Recent alerts"),
+        o.alerts.length ? h("table", {}, h("tbody", {}, o.alerts.map((a) => h("tr", {}, h("td", { class: "dur" }, ago(a.created_at)), h("td", {}, pill(a.delivered ? "ok" : "warn", a.kind)), h("td", { class: "msg" }, a.message))))) : h("div", { class: "empty" }, "No alerts fired."))),
+    h("div", { class: "panel", style: "margin-top:16px" }, h("h2", {}, "Scheduled tasks"),
+      o.tasks.length ? h("table", {}, h("thead", {}, h("tr", {}, ["Task", "Last run", "Result", "Next run", "Runs", ""].map((x) => h("th", {}, x)))),
+        h("tbody", {}, o.tasks.map((t) => h("tr", {},
+          h("td", { class: "mono" }, t.name), h("td", { class: "dur" }, ago(t.last_run_at)),
+          h("td", {}, t.last_status ? pill(t.last_status === "ok" ? "ok" : "error", t.last_status) : "—", t.last_error ? h("div", { class: "sub msg" }, short(t.last_error, 60)) : null),
+          h("td", { class: "dur" }, ago(t.next_run_at)), h("td", {}, t.run_count),
+          h("td", {}, h("button", { class: "btn", onclick: async () => { try { await api("run_task", { name: t.name }); } catch (x) { banner(x.message); } refresh(); } }, "run due")))))) : h("div", { class: "empty" }, "No tick has run yet. Point cron-job.org at POST /internal/tick.")),
+    h("div", { class: "row", style: "margin-top:16px" },
+      h("button", { class: "btn primary", id: "drainBtn", onclick: async (e) => { e.target.disabled = true; try { const r = await api("drain_now"); banner(`Drained: claimed ${r.claimed}, ${r.done} done, ${r.queued} requeued, ${r.dead} dead`, true); } catch (x) { banner(x.message); } e.target.disabled = false; refresh(); } }, "Run a drain now"),
+      h("span", { class: "sub" }, "Claims up to 20 queued jobs, like the every-minute cron tick.")));
+}
+
+function timeline(events) {
+  if (!events.length) return h("div", { class: "empty" }, "No steps recorded.");
+  return h("ol", { class: "timeline" }, events.map((e) => h("li", {},
+    h("span", { class: "ico i-" + e.status, title: e.status }, ICON[e.status] || "·"),
+    h("div", {}, h("div", { class: "step" }, e.step), h("div", { class: "dur" }, clock(e.created_at))),
+    h("div", { class: "msg" + (e.status === "error" ? " err" : "") }, e.message || "",
+      e.meta && Object.keys(e.meta).length ? h("details", {}, h("summary", {}, "details"), h("pre", {}, JSON.stringify(e.meta, null, 2))) : null),
+    h("span", { class: "dur" }, e.duration_ms != null ? e.duration_ms + " ms" : ""))));
+}
+
+async function loadRun(runId, into) {
+  const { events } = await api("run_events", { run_id: runId });
+  const first = events[0];
+  const errs = events.filter((e) => e.status === "error").length;
+  into.replaceChildren(
+    h("div", { class: "row", style: "margin-bottom:8px" },
+      first ? pill(errs ? "error" : events.some((e) => e.status === "warn") ? "warn" : "ok", errs ? errs + " error" + (errs > 1 ? "s" : "") : "success") : null,
+      first && first.platform ? h("span", { class: "pill p-info" }, first.platform) : null,
+      first && first.content_id ? h("span", { class: "mono" }, short(first.content_id, 24)) : null,
+      h("span", { class: "spacer" }),
+      first && first.job_id ? h("span", { class: "sub" }, "job " + first.job_id) : null,
+      h("span", { class: "sub mono", title: runId }, "run " + runId.slice(0, 8))),
+    timeline(events));
+}
+
+async function viewRuns(root) {
+  const f = state.runFilter;
+  const { runs } = await api("runs", { limit: 60, only_errors: f.only_errors, platform: f.platform, q: f.q });
+  const right = h("div", { class: "panel" }, h("div", { class: "empty" }, "Select a run to see every step."));
+  const rows = runs.map((r) => h("tr", { class: "click" + (state.selRun === r.run_id ? " sel" : ""), onclick: () => { state.selRun = r.run_id; viewRunsSelect(rows, right, r.run_id); } },
+    h("td", { class: "dur" }, clock(r.started_at)),
+    h("td", {}, r.platform ? h("span", { class: "pill p-info" }, r.platform) : h("span", { class: "pill p-skip" }, "drain tick")),
+    h("td", { class: "mono" }, short(r.content_id, 12)),
+    h("td", {}, pill(r.errors > 0 ? "error" : r.warnings > 0 ? "warn" : "ok", r.errors > 0 ? r.errors + " err" : r.warnings > 0 ? r.warnings + " warn" : "ok")),
+    h("td", { class: "msg sub" }, short(r.last_step, 46))));
+  const filters = h("div", { class: "row", style: "margin-bottom:12px" },
+    h("label", { class: "sw" }, h("input", { type: "checkbox", checked: f.only_errors, onchange: (e) => { f.only_errors = e.target.checked; refresh(); } }), "errors only"),
+    h("select", { onchange: (e) => { f.platform = e.target.value; refresh(); } }, ["", "instagram", "youtube", "web"].map((p) => h("option", { value: p, selected: f.platform === p }, p || "all platforms"))),
+    h("input", { type: "text", placeholder: "content id…", value: f.q, onchange: (e) => { f.q = e.target.value.trim(); refresh(); } }));
+  root.replaceChildren(h("div", { class: "split" },
+    h("div", { class: "panel" }, filters,
+      runs.length ? h("table", {}, h("thead", {}, h("tr", {}, ["Time", "Platform", "Post", "Result", "Last step"].map((x) => h("th", {}, x)))), h("tbody", {}, rows)) : h("div", { class: "empty" }, "No runs recorded yet. Share a link or use “Try a URL”.")),
+    right));
+  if (state.selRun) await loadRun(state.selRun, right);
+}
+function viewRunsSelect(rows, right, id) { rows.forEach((r) => r.classList.remove("sel")); loadRun(id, right).catch((e) => banner(e.message)); refresh(true); }
+
+async function viewJobs(root) {
+  const { jobs } = await api("jobs", { status: state.jobFilter, limit: 150 });
+  const chips = ["", "queued", "running", "done", "dead"].map((s) => h("button", { class: "btn" + (state.jobFilter === s ? " primary" : ""), onclick: () => { state.jobFilter = s; refresh(); } }, s || "all"));
+  root.replaceChildren(h("div", { class: "panel" }, h("div", { class: "row", style: "margin-bottom:12px" }, chips),
+    jobs.length ? h("table", {}, h("thead", {}, h("tr", {}, ["#", "Stage", "Platform", "Post", "Status", "Tries", "Next run", "Last error", ""].map((x) => h("th", {}, x)))),
+      h("tbody", {}, jobs.map((j) => h("tr", {}, h("td", { class: "mono" }, j.id), h("td", { class: "mono" }, j.stage), h("td", {}, j.platform), h("td", { class: "mono" }, short(j.content_id, 12)),
+        h("td", {}, pill(j.status)), h("td", {}, j.attempts), h("td", { class: "dur" }, j.status === "queued" ? ago(j.next_run_at) : "—"), h("td", { class: "msg" }, short(j.last_error, 60)),
+        h("td", {}, h("button", { class: "btn", onclick: async () => { const { runs } = await api("runs", { job_id: j.id, limit: 1 }); if (runs[0]) { state.selRun = runs[0].run_id; state.tab = "runs"; renderNav(); refresh(); } else banner("No run recorded for job " + j.id + " yet."); } }, "steps")))))) : h("div", { class: "empty" }, "No jobs.")));
+}
+
+async function viewCalls(root) {
+  const { calls } = await api("provider_calls", { limit: 150 });
+  root.replaceChildren(h("div", { class: "panel" }, calls.length ? h("table", {}, h("thead", {}, h("tr", {}, ["Time", "Provider", "Endpoint", "Post", "HTTP", "Latency", "Est. cost"].map((x) => h("th", {}, x)))),
+    h("tbody", {}, calls.map((c) => h("tr", {}, h("td", { class: "dur" }, clock(c.created_at)), h("td", { class: "mono" }, c.provider), h("td", { class: "mono" }, c.endpoint), h("td", { class: "mono" }, short(c.content_id, 12)),
+      h("td", {}, c.status_code == null ? pill("error", "net") : pill(c.status_code < 400 ? "ok" : c.status_code === 404 || c.status_code === 403 ? "warn" : "error", c.status_code)), h("td", { class: "dur" }, c.latency_ms + " ms"), h("td", { class: "mono" }, (+c.est_cost).toFixed(4)))))) : h("div", { class: "empty" }, "No provider calls yet.")));
+}
+
+async function viewDead(root) {
+  const { jobs } = await api("dead");
+  root.replaceChildren(h("div", { class: "panel" }, h("div", { class: "row", style: "margin-bottom:12px" },
+    h("span", { class: "sub" }, "Jobs that exhausted their retries. Retrying resets attempts and re-queues the save."), h("span", { class: "spacer" }),
+    jobs.length ? h("button", { class: "btn danger", onclick: async () => { const r = await api("retry_all_dead"); banner(`Requeued ${r.requeued} job(s)`, true); refresh(); } }, "Retry all") : null),
+    jobs.length ? h("table", {}, h("thead", {}, h("tr", {}, ["#", "Stage", "Platform", "Post", "Tries", "Last error", "Died", ""].map((x) => h("th", {}, x)))),
+      h("tbody", {}, jobs.map((j) => h("tr", {}, h("td", { class: "mono" }, j.id), h("td", { class: "mono" }, j.stage), h("td", {}, j.platform), h("td", { class: "mono" }, short(j.content_id, 12)), h("td", {}, j.attempts),
+        h("td", { class: "msg" }, j.last_error), h("td", { class: "dur" }, ago(j.finished_at)),
+        h("td", {}, h("button", { class: "btn", onclick: async () => { await api("retry_job", { id: j.id }); refresh(); } }, "retry")))))) : h("div", { class: "empty" }, "Nothing dead-lettered. ✓")));
+}
+
+let tryRun = null;
+async function viewTry(root) {
+  const out = h("div", { class: "panel", style: "margin-top:16px" }, h("div", { class: "empty" }, "Results appear here."));
+  const input = h("input", { type: "url", placeholder: "https://www.instagram.com/reel/…  ·  https://youtube.com/shorts/…  ·  any web page", style: "flex:1;min-width:300px", required: true });
+  const bypass = h("input", { type: "checkbox" });
+  const go = h("button", { class: "btn primary", type: "submit" }, "Run pipeline");
+  const form = h("form", { class: "row", onsubmit: async (e) => {
+    e.preventDefault(); go.disabled = true; go.textContent = "Running…";
+    out.replaceChildren(h("div", { class: "empty" }, "Running every step…"));
+    try { const r = await api("run_url", { url: input.value, bypass_cache: bypass.checked }); tryRun = r.run_id; await loadRun(r.run_id, out); }
+    catch (x) { banner(x.message); }
+    go.disabled = false; go.textContent = "Run pipeline";
+  } }, input, h("label", { class: "sw", title: "Deletes this post's cached analysis and metadata first, so the provider and model are called again" }, bypass, "bypass cache"), go);
+  root.replaceChildren(h("div", { class: "panel" }, h("h2", {}, "Dry run"), form,
+    h("div", { class: "sub", style: "margin-top:8px" }, "Runs every pipeline step for a URL with no save and no job, so it is safe to try anything. It does fill the shared caches and makes real provider/model calls (spend is recorded).")), out);
+  if (tryRun) loadRun(tryRun, out).catch(() => {});
+}
+
+const VIEWS = { overview: viewOverview, runs: viewRuns, jobs: viewJobs, calls: viewCalls, dead: viewDead, try: viewTry };
+let busy = false;
+async function refresh(skipIfBusy) {
+  if (busy && skipIfBusy) return;
+  if (!conf().token) { $("connectPanel").classList.remove("hidden"); $("view").replaceChildren(h("div", { class: "empty" }, "Enter the admin token to begin.")); return; }
+  busy = true;
+  try { await VIEWS[state.tab]($("view")); $("live").classList.add("live"); if ($("banner").className.includes("err") || $("banner").textContent.startsWith("Not") ) banner(""); }
+  catch (e) { $("live").classList.remove("live"); banner(e.message === "unauthorized" ? "Unauthorized — check the admin token." : e.message); }
+  busy = false;
+}
+
+// ---------- wiring ----------
+$("cfgBtn").onclick = () => $("connectPanel").classList.toggle("hidden");
+$("connect").onsubmit = (e) => {
+  e.preventDefault();
+  localStorage.removeItem("dibs.token"); sessionStorage.removeItem("dibs.token");
+  const s = $("remember").checked ? localStorage : sessionStorage;
+  s.setItem("dibs.token", $("token").value);
+  $("token").value = ""; $("connectPanel").classList.add("hidden"); banner(""); refresh();
+};
+
+setInterval(() => { if ($("auto").checked && !document.hidden && state.tab !== "try") refresh(true); }, 5000);
+renderNav(); refresh();
+</script>
+</body>
+</html>

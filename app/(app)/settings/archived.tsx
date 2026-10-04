@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ArchivedSave } from "@/lib/database.types";
 import { CategoryIcon, CATEGORY_EMOJI, CATEGORY_LABEL } from "@/components/SaveCard";
 import { appAlert } from "@/providers/AlertProvider";
-import { supabase } from "@/lib/supabase";
+import { deleteArchived, listArchived, restoreArchived } from "@/lib/saves";
 import { useAuth } from "@/providers/AuthProvider";
 
 function daysUntilExpiry(expiresAt: string): number {
@@ -40,28 +40,23 @@ export default function ArchivedSavesScreen() {
 
   const fetchArchives = async () => {
     if (!session) return;
-    const { data } = await supabase
-      .from("archived_saves")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .order("archived_at", { ascending: false });
-    setArchives((data as ArchivedSave[]) ?? []);
+    try {
+      setArchives(await listArchived());
+    } catch (err) {
+      console.warn("Failed to load archive:", err);
+    }
     setLoading(false);
   };
 
   useEffect(() => { void fetchArchives(); }, [session]);
 
   const handleRestore = async (archive: ArchivedSave) => {
-    const { error } = await supabase
-      .from("saves")
-      .update({ archived: false, archived_at: null })
-      .eq("id", archive.original_save_id);
-
-    if (error) {
+    try {
+      await restoreArchived(archive.id);
+    } catch {
       appAlert("Error", "Couldn't restore this save.");
       return;
     }
-    await supabase.from("archived_saves").delete().eq("id", archive.id);
     setArchives((prev) => prev.filter((a) => a.id !== archive.id));
   };
 
@@ -74,8 +69,12 @@ export default function ArchivedSavesScreen() {
         {
           text: "Delete", style: "destructive",
           onPress: async () => {
-            await supabase.from("saves").delete().eq("id", archive.original_save_id);
-            await supabase.from("archived_saves").delete().eq("id", archive.id);
+            try {
+              await deleteArchived(archive.id);
+            } catch {
+              appAlert("Error", "Couldn't delete this save.");
+              return;
+            }
             setArchives((prev) => prev.filter((a) => a.id !== archive.id));
           },
         },

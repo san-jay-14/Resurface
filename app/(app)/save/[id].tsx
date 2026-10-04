@@ -29,7 +29,7 @@ import {
 } from "@/components/SaveCard";
 import type { Save, SaveLocation } from "@/lib/database.types";
 import { appAlert } from "@/providers/AlertProvider";
-import { supabase } from "@/lib/supabase";
+import { archiveSave, getSave, getSimilarSaves, updateSave, type SavePatch } from "@/lib/saves";
 import { useAuth } from "@/providers/AuthProvider";
 
 // ---------------------------------------------------------------------------
@@ -278,16 +278,16 @@ export default function SaveDetail() {
   useEffect(() => {
     if (!id) return;
     const fetch = async () => {
-      const [saveRes, locRes] = await Promise.all([
-        supabase.from("saves").select("*").eq("id", id).single(),
-        supabase.from("save_locations").select("*").eq("save_id", id).maybeSingle(),
-      ]);
-      if (saveRes.error || !saveRes.data) { setLoading(false); return; }
-      setSave(saveRes.data as Save);
-      if (locRes.data) setLocation(locRes.data as SaveLocation);
-      setLoading(false);
-      // Track last_viewed_at for dormancy calculations
-      void supabase.from("saves").update({ last_viewed_at: new Date().toISOString() }).eq("id", id);
+      try {
+        const detail = await getSave(id);
+        setSave(detail.save);
+        setLocation(detail.location);
+        setLoading(false);
+        // Track last_viewed_at for dormancy calculations (only meaningful on your own saves).
+        if (detail.owned) void updateSave(id, { viewed: true }).catch(() => undefined);
+      } catch {
+        setLoading(false);
+      }
     };
     void fetch();
   }, [id]);
@@ -300,9 +300,9 @@ export default function SaveDetail() {
     useCallback(() => {
       if (!id) return;
       if (!didMountRef.current) { didMountRef.current = true; return; }
-      void supabase.from("saves").select("*").eq("id", id).single().then(({ data }) => {
-        if (data) setSave(data as Save);
-      });
+      void getSave(id)
+        .then((detail) => setSave(detail.save))
+        .catch(() => undefined);
     }, [id]),
   );
 
@@ -310,27 +310,22 @@ export default function SaveDetail() {
   useEffect(() => {
     if (!save || !session) return;
     const fetchMore = async () => {
-      const { data } = await supabase
-        .from("saves")
-        .select("*")
-        .eq("user_id", session.user.id)
-        .eq("category", save.category)
-        .eq("archived", false)
-        .neq("id", save.id)
-        .order("created_at", { ascending: false })
-        .limit(10);
-      if (data) setMoreSaves(data as Save[]);
+      try {
+        setMoreSaves(await getSimilarSaves(save.id));
+      } catch {
+        // "More like this" is decorative; stay quiet on failure.
+      }
     };
     void fetchMore();
   }, [save]);
 
   const patchSave = async (patch: Partial<Save>, rollback: Partial<Save>) => {
     setSave((prev) => prev ? { ...prev, ...patch } : prev);
-    const { error } = await supabase
-      .from("saves")
-      .update({ ...patch, last_interacted_at: new Date().toISOString() })
-      .eq("id", id);
-    if (error) {
+    // acted_on_at is derived server-side from acted_on.
+    const { acted_on_at: _derived, ...wire } = patch;
+    try {
+      await updateSave(String(id), wire as SavePatch);
+    } catch {
       setSave((prev) => prev ? { ...prev, ...rollback } : prev);
       showToast("Couldn't save — try again");
     }
@@ -375,10 +370,12 @@ export default function SaveDetail() {
       {
         text: "Delete", style: "destructive",
         onPress: async () => {
-          await supabase
-            .from("saves")
-            .update({ archived: true, archived_at: new Date().toISOString() })
-            .eq("id", id);
+          try {
+            await archiveSave(String(id));
+          } catch {
+            showToast("Couldn't delete — try again");
+            return;
+          }
           router.back();
         },
       },

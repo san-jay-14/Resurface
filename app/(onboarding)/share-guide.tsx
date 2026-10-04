@@ -87,7 +87,7 @@ export default function ShareGuideStep() {
     if (!session) return;
     try {
       setFinishing(true);
-      await updateProfile(session.user.id, { onboarding_completed: true });
+      await updateProfile({ onboarding_completed: true });
       await refreshProfile();
       // Don't rely solely on the root layout's routing-gate effect picking
       // up the profile change — navigate explicitly so this never stalls.

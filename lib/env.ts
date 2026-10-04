@@ -17,14 +17,8 @@ function required(name: string, value: string | undefined): string {
 }
 
 export const env = {
-  supabaseUrl: required(
-    "EXPO_PUBLIC_SUPABASE_URL",
-    process.env.EXPO_PUBLIC_SUPABASE_URL,
-  ),
-  supabaseAnonKey: required(
-    "EXPO_PUBLIC_SUPABASE_ANON_KEY",
-    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
-  ),
+  /** Base URL of the Resurface API (no trailing slash), e.g. https://dibs-api.onrender.com */
+  apiUrl: required("EXPO_PUBLIC_API_URL", process.env.EXPO_PUBLIC_API_URL).replace(/\/+$/, ""),
   // Optional — only needed once the respective feature is wired up.
   googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "",
   easProjectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID ?? "",

@@ -37,7 +37,7 @@ export default function NotificationsStep() {
     setWorking(true);
     try {
       const granted = await requestNotificationPermission();
-      if (granted && session) await registerDeviceToken(session.user.id);
+      if (granted && session) await registerDeviceToken();
     } finally {
       setWorking(false);
       router.push("/(onboarding)/share-guide");

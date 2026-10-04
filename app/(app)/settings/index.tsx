@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { deleteAccount } from "@/lib/profile";
 import { appAlert } from "@/providers/AlertProvider";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -164,23 +165,37 @@ export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const meta = session?.user?.user_metadata ?? {};
-  const displayName: string =
-    profile?.name ??
-    (meta.full_name as string | undefined) ??
-    (meta.name as string | undefined) ??
-    "You";
+  const displayName: string = profile?.name ?? session?.user.name ?? "You";
   const email = session?.user?.email ?? "";
-  const avatarUrl: string | null =
-    profile?.avatar_url ??
-    (meta.avatar_url as string | undefined) ??
-    (meta.picture as string | undefined) ??
-    null;
+  const avatarUrl: string | null = profile?.avatar_url ?? session?.user.image ?? null;
   const initials = displayName
     .split(" ")
     .map((w) => w[0]?.toUpperCase() ?? "")
     .slice(0, 2)
     .join("");
+
+  const handleDeleteAccount = () => {
+    appAlert(
+      "Delete account",
+      "This permanently deletes your account, saves, boards and everything else. This can't be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete everything",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteAccount();
+            } catch (err) {
+              appAlert("Couldn't delete", err instanceof Error ? err.message : "Try again.");
+              return;
+            }
+            await signOut().catch(() => undefined);
+          },
+        },
+      ],
+    );
+  };
 
   const handleSignOut = () => {
     appAlert("Sign out", "Are you sure you want to sign out?", [
@@ -368,6 +383,13 @@ export default function SettingsScreen() {
             icon="log-out-outline"
             label="Sign out"
             onPress={handleSignOut}
+            danger
+          />
+          <RowDivider />
+          <MenuRow
+            icon="trash-outline"
+            label="Delete account"
+            onPress={handleDeleteAccount}
             danger
           />
         </MenuCard>

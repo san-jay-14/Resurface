@@ -3,8 +3,8 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
+import { api } from "./api";
 import { env } from "./env";
-import { supabase } from "./supabase";
 
 // Show notifications even when the app is in the foreground.
 Notifications.setNotificationHandler({
@@ -77,22 +77,26 @@ export async function getExpoPushToken(): Promise<string | null> {
   }
 }
 
-/** Upsert the device's push token against the user (spec §6.6). */
-export async function registerDeviceToken(userId: string): Promise<void> {
+/** Register this device's push token for the signed-in user (spec §6.6). Idempotent. */
+export async function registerDeviceToken(): Promise<void> {
   const token = await getExpoPushToken();
   if (!token) return;
-
-  const { error } = await supabase.from("device_tokens").upsert(
-    {
-      user_id: userId,
-      expo_push_token: token,
-      platform: Platform.OS,
-    },
-    { onConflict: "expo_push_token" },
-  );
-  if (error) {
-    console.warn("[Push] Failed to upsert device token:", error.message);
-  } else {
-    console.log("[Push] Device token registered for user", userId);
+  try {
+    await api.put("/device-tokens", { token, platform: Platform.OS });
+    console.log("[Push] Device token registered");
+  } catch (err) {
+    console.warn("[Push] Failed to register device token:", err);
   }
+}
+
+/** Unregister this device's token (sign-out), so the next user of the phone isn't sent the old account's pushes. */
+export async function unregisterDeviceToken(): Promise<void> {
+  const token = await getExpoPushToken();
+  if (!token) return;
+  await api.delete("/device-tokens", { token });
+}
+
+/** Tell the server a push notification was opened (powers throttling and tap-through stats). */
+export async function markNotificationTapped(notificationId: string): Promise<void> {
+  await api.post(`/notifications/${notificationId}/tapped`);
 }

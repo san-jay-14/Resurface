@@ -13,7 +13,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { supabase } from "@/lib/supabase";
+import { createBoard } from "@/lib/boards";
+import { isApiError } from "@/providers/AuthProvider";
 import { appAlert } from "@/providers/AlertProvider";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -41,28 +42,24 @@ export default function CreateBoardScreen() {
   const create = async () => {
     if (!session || !canCreate) return;
     setCreating(true);
-    const { data, error } = await supabase
-      .from("collections")
-      .insert({
-        user_id: session.user.id,
-        name: name.trim(),
-        description: description.trim() || null,
-        requires_location: requiresLocation,
-      })
-      .select()
-      .single();
-    setCreating(false);
-
-    if (error) {
-      appAlert("Error", error.message.includes("unique")
+    let board;
+    try {
+      board = await createBoard(name, {
+        description: description.trim() || undefined,
+        requiresLocation,
+      });
+    } catch (err) {
+      appAlert("Error", isApiError(err, "board_name_taken")
         ? `A board called "${name.trim()}" already exists.`
-        : error.message);
+        : err instanceof Error ? err.message : "Couldn't create the board.");
       return;
+    } finally {
+      setCreating(false);
     }
 
     router.replace({
       pathname: "/(app)/board/[id]",
-      params: { id: data.id, name: data.name },
+      params: { id: board.id, name: board.name },
     } as never);
   };
 

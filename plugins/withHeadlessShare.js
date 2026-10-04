@@ -52,19 +52,29 @@ const withGradle = (config) =>
   withAppBuildGradle(config, (config) => {
     let gradle = config.modResults.contents;
 
-    // BuildConfig fields
-    if (!gradle.includes("SUPABASE_URL")) {
-      gradle = gradle.replace(
-        /buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL".*\n(\s*)}/,
-        (m, indent) =>
-          m.replace(
-            `${indent}}`,
-            `${indent}    buildConfigField "String", "SUPABASE_URL", "\\"https://wsnrkbldvrzyqnqexcvo.supabase.co\\""\n` +
-            `${indent}    buildConfigField "String", "SUPABASE_ANON_KEY", "\\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzbnJrYmxkdnJ6eXFucWV4Y3ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NzM3NTIsImV4cCI6MjA5NjI0OTc1Mn0.F1UwTmJCWPk0ligMFZLz1dLX1X-s5VQXSQnhs6ZVO9k\\""\n` +
-            `${indent}}\n    buildFeatures {\n${indent}    buildConfig = true\n${indent}}`
-          )
-      );
+    // BuildConfig field: the API the share worker posts to. Read from the same env var as the app,
+    // so a build can never point the worker and the app at different servers.
+    const apiUrl = (process.env.EXPO_PUBLIC_API_URL ?? "").replace(/\/+$/, "");
+    if (!apiUrl) {
+      throw new Error("EXPO_PUBLIC_API_URL must be set to prebuild the Android share worker.");
     }
+    const field = `buildConfigField "String", "API_URL", "\\"${apiUrl}\\""`;
+    // Idempotent: drop any previous (or legacy) fields, then add the current one.
+    gradle = gradle.replace(
+      /^[ \t]*buildConfigField "String", "(SUPABASE_URL|SUPABASE_ANON_KEY|API_URL)".*\n/gm,
+      "",
+    );
+    gradle = gradle.replace(
+      /buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL".*\n([ \t]*)}/,
+      (m, indent) =>
+        m.replace(
+          `${indent}}`,
+          `${indent}    ${field}\n${indent}}` +
+            (gradle.includes("buildConfig = true")
+              ? ""
+              : `\n    buildFeatures {\n${indent}    buildConfig = true\n${indent}}`),
+        ),
+    );
 
     // Dependencies
     for (const dep of [
@@ -147,7 +157,7 @@ class SaveWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
     companion object {
         const val KEY_URL = "url"
         private const val TAG = "DibsSaveWorker"
-        private const val STORAGE_KEY = "sb-wsnrkbldvrzyqnqexcvo-auth-token"
+        private const val STORAGE_KEY = "dibs.share"
         private val JSON = "application/json".toMediaType()
     }
 
@@ -156,16 +166,14 @@ class SaveWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
-    private val supabaseUrl = BuildConfig.SUPABASE_URL
-    private val anonKey = BuildConfig.SUPABASE_ANON_KEY
+    private val apiUrl = BuildConfig.API_URL
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val url = inputData.getString(KEY_URL) ?: return@withContext Result.failure()
         val notif = NotificationHelper(applicationContext)
         try {
-            val (token, userId) = readAuth() ?: return@withContext Result.failure()
-            val saveId = insertSave(url, token, userId)
-            invokeEnrichment(url, saveId, token)
+            val token = readShareToken() ?: return@withContext Result.failure()
+            val saveId = enqueue(url, token)
             notif.showSuccess(saveId)
             Result.success()
         } catch (e: IOException) {
@@ -178,59 +186,33 @@ class SaveWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
         }
     }
 
-    private data class AuthState(val token: String, val userId: String)
-
-    private fun readAuth(): AuthState? = try {
+    // The app mints a scoped, revocable share token after sign-in and stores it in AsyncStorage
+    // (RKStorage). It can only call POST /v1/saves/enqueue. Null means "not signed in".
+    private fun readShareToken(): String? = try {
         val db = applicationContext.getDatabasePath("RKStorage")
         if (!db.exists()) null
         else {
             val sqlite = SQLiteDatabase.openDatabase(db.path, null, SQLiteDatabase.OPEN_READONLY)
             val cur = sqlite.rawQuery("SELECT value FROM catalystLocalStorage WHERE key = ?", arrayOf(STORAGE_KEY))
-            val result = if (cur.moveToFirst()) {
-                val json = JSONObject(cur.getString(0))
-                val t = json.optString("access_token").takeIf { it.isNotEmpty() }
-                val u = json.optJSONObject("user")?.optString("id")
-                if (t != null && u != null) AuthState(t, u) else null
-            } else null
+            val result = if (cur.moveToFirst()) cur.getString(0).takeIf { it.startsWith("dst_") } else null
             cur.close(); sqlite.close(); result
         }
     } catch (e: Exception) { null }
 
-    private fun detectPlatform(url: String) = when {
-        url.contains("instagram.com") -> "instagram"
-        url.contains("youtube.com") || url.contains("youtu.be") -> "youtube"
-        else -> "web"
-    }
-
-    private fun insertSave(url: String, token: String, userId: String): String {
-        val body = JSONObject().apply {
-            put("user_id", userId); put("source_url", url)
-            put("source_platform", detectPlatform(url))
-            put("category", "unsorted"); put("status", "pending")
-        }
+    // One server-side entry point: canonicalizes the URL, dedupes, creates the save and
+    // queues enrichment. Idempotent, so WorkManager retries cannot create duplicates.
+    private fun enqueue(url: String, token: String): String {
         val resp = http.newCall(Request.Builder()
-            .url("\$supabaseUrl/rest/v1/saves")
-            .addHeader("apikey", anonKey).addHeader("Authorization", "Bearer \$token")
-            .addHeader("Content-Type", "application/json").addHeader("Prefer", "return=representation")
-            .post(body.toString().toRequestBody(JSON)).build()).execute()
+            .url("\$apiUrl/v1/saves/enqueue")
+            .addHeader("Authorization", "ShareToken \$token")
+            .addHeader("Content-Type", "application/json")
+            .post(JSONObject().put("url", url).toString().toRequestBody(JSON)).build()).execute()
         val raw = resp.body?.string() ?: throw IOException("Empty response")
-        if (!resp.isSuccessful) throw IOException("Insert \${resp.code}: \$raw")
-        return JSONArray(raw).getJSONObject(0).getString("id")
-    }
-
-    private fun invokeEnrichment(url: String, saveId: String, token: String) {
-        val fn = if (url.contains("instagram.com")) "scrape-instagram" else "enrich-save"
-        val body = JSONObject().apply {
-            put("save_id", saveId)
-            if (url.contains("instagram.com")) put("url", url)
-        }
-        try {
-            http.newCall(Request.Builder()
-                .url("\$supabaseUrl/functions/v1/\$fn")
-                .addHeader("apikey", anonKey).addHeader("Authorization", "Bearer \$token")
-                .addHeader("Content-Type", "application/json")
-                .post(body.toString().toRequestBody(JSON)).build()).execute()
-        } catch (e: Exception) { Log.w(TAG, "\$fn failed (non-fatal): \${e.message}") }
+        // 5xx, rate limits and cold starts are retried by WorkManager; 401 (token revoked) and other
+        // 4xx (unsupported link) are final.
+        if (resp.code >= 500 || resp.code == 429) throw IOException("enqueue \${resp.code}: \$raw")
+        if (!resp.isSuccessful) throw IllegalStateException("enqueue \${resp.code}: \$raw")
+        return JSONObject(raw).getString("save_id")
     }
 }
 `;

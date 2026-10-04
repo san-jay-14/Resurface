@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CategoryIcon, CATEGORY_COLORS, CATEGORY_LABEL, getSaveTitle } from "@/components/SaveCard";
 import type { Save } from "@/lib/database.types";
-import { supabase } from "@/lib/supabase";
+import { listSaves } from "@/lib/saves";
 import { useAuth } from "@/providers/AuthProvider";
 
 const RECENT_KEY = "resurface_recent_searches_v2";
@@ -172,16 +172,11 @@ export default function SearchScreen() {
       return;
     }
     setSearching(true);
-    const term = `%${q.trim()}%`;
-    const { data } = await supabase
-      .from("saves")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .eq("archived", false)
-      .or(`title.ilike.${term},ai_description.ilike.${term},note.ilike.${term}`)
-      .order("created_at", { ascending: false })
-      .limit(50);
-    setResults((data as Save[]) ?? []);
+    try {
+      setResults(await listSaves({ archived: false, search: q.trim(), limit: 50 }));
+    } catch (err) {
+      console.warn("Search failed:", err);
+    }
     setSearching(false);
   };
 

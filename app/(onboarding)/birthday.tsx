@@ -32,7 +32,7 @@ export default function BirthdayStep() {
     if (!session) return;
     try {
       setSaving(true);
-      await updateProfile(session.user.id, { birthday });
+      await updateProfile({ birthday });
       await refreshProfile();
       router.push("/(onboarding)/home-city");
     } catch (err) {

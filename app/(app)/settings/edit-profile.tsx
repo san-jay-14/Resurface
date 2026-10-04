@@ -15,9 +15,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppDatePicker } from "@/components/AppDatePicker";
-import { updateProfile } from "@/lib/profile";
+import { updateProfile, uploadAvatar } from "@/lib/profile";
 import { appAlert } from "@/providers/AlertProvider";
-import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 
 function toISODate(d: Date): string {
@@ -80,12 +79,7 @@ export default function EditProfileScreen() {
     }, [refreshProfile]),
   );
 
-  const meta = session?.user?.user_metadata ?? {};
-  const avatarUrl: string | null =
-    profile?.avatar_url ??
-    (meta.avatar_url as string | undefined) ??
-    (meta.picture as string | undefined) ??
-    null;
+  const avatarUrl: string | null = profile?.avatar_url ?? session?.user.image ?? null;
   const initials = (profile?.name ?? "You")
     .split(" ")
     .map((w) => w[0]?.toUpperCase() ?? "")
@@ -109,19 +103,13 @@ export default function EditProfileScreen() {
     const asset = result.assets[0];
     setUploadingAvatar(true);
     try {
+      // The server validates the image and gives every upload a fresh URL (no cache busting needed).
       const ext = asset.uri.split(".").pop()?.toLowerCase() ?? "jpg";
-      const path = `${session.user.id}/avatar.${ext}`;
-      const response = await fetch(asset.uri);
-      const blob = await response.blob();
-
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(path, blob, { upsert: true, contentType: asset.mimeType ?? "image/jpeg" });
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-      // Cache-bust so the new image shows immediately (same path, new content).
-      await updateProfile(session.user.id, { avatar_url: `${data.publicUrl}?t=${Date.now()}` });
+      await uploadAvatar({
+        uri: asset.uri,
+        name: `avatar.${ext}`,
+        type: asset.mimeType ?? "image/jpeg",
+      });
       await refreshProfile();
     } catch (err) {
       appAlert("Couldn't update photo", err instanceof Error ? err.message : "Try again.");
@@ -134,14 +122,14 @@ export default function EditProfileScreen() {
     setShowPicker(false);
     if (!session) return;
     const iso = toISODate(selected);
-    void updateProfile(session.user.id, { birthday: iso }).then(() => refreshProfile());
+    void updateProfile({ birthday: iso }).then(() => refreshProfile());
   };
 
   const handleSave = async () => {
     if (!session) return;
     setSaving(true);
     try {
-      await updateProfile(session.user.id, { name: name.trim() || null });
+      await updateProfile({ name: name.trim() || null });
       await refreshProfile();
       router.back();
     } catch (err) {

@@ -19,7 +19,7 @@ export default function HomeCityStep() {
     if (!session || trimmed.length === 0) return;
     try {
       setSaving(true);
-      await updateProfile(session.user.id, { home_city: trimmed });
+      await updateProfile({ home_city: trimmed });
       await refreshProfile();
       router.push("/(onboarding)/notifications");
     } catch (err) {

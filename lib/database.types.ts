@@ -1,9 +1,6 @@
 /**
- * Hand-maintained types mirroring supabase/migrations.
- *
- * Once the Supabase project exists you can replace this with generated types:
- *   npx supabase gen types typescript --project-id <ref> > lib/database.types.ts
- * Until then, keep this in sync with the SQL by hand.
+ * Hand-maintained types mirroring the API's JSON responses (server/migrations + server/src/db/repos).
+ * Dates are ISO strings on the wire. Keep in sync with the server by hand.
  */
 
 export type SourcePlatform =
@@ -27,7 +24,9 @@ export type SaveCategory =
   | "unsorted";
 
 export type SaveStatus = "pending" | "enriched" | "manual";
-export type UserEventType = "birthday" | "anniversary" | "trip";
+
+/** Pipeline state, driven server-side by the enrichment pipeline. */
+export type EnrichmentStatus = "queued" | "processing" | "done" | "needs_review";
 export type CalendarEventType = "holiday" | "festival" | "long_weekend";
 
 export interface UserProfile {
@@ -43,14 +42,12 @@ export interface UserProfile {
   current_city_lat: number | null;
   current_city_lng: number | null;
   current_city_updated_at: string | null;
-  notif_frequency_pref: string;
   notification_prefs: NotificationPrefs;
-  last_notified_at: string | null;
-  is_guest: boolean;
   onboarding_completed: boolean;
   wrapped_theme: string | null;
   feature_flags: FeatureFlags;
   created_at: string;
+  updated_at: string;
 }
 
 export interface FeatureFlags {
@@ -96,6 +93,7 @@ export interface Save {
   archived_at: string | null;
   last_viewed_at: string | null;
   created_at: string;
+  updated_at: string;
   last_interacted_at: string | null;
   scrape_method: string;
   category_confidence: number | null;
@@ -103,6 +101,12 @@ export interface Save {
   sub_category_id: string | null;
   remind_at: string | null;
   reminded_at: string | null;
+  // Enrichment pipeline
+  platform: string | null;
+  content_id: string | null;
+  enrichment_status: EnrichmentStatus | null;
+  enrichment_reason: string | null;
+  enriched_at: string | null;
 }
 
 export interface UserSubCategory {
@@ -132,17 +136,23 @@ export interface PlaceSave {
 
 export interface Collection {
   id: string;
-  user_id: string;
+  owner_id: string;
   name: string;
   description: string | null;
   requires_location: boolean;
   source_category: SaveCategory | null;
   is_shared: boolean;
   invite_code: string | null;
-  owner_id: string | null;
   created_at: string;
   updated_at: string;
-  save_count?: number;
+}
+
+/** A board as listed for the signed-in user (owned or joined). */
+export interface BoardSummary extends Collection {
+  thumbnails: string[];
+  save_count: number;
+  member_count: number;
+  role: "owner" | "member";
 }
 
 export interface CollectionSave {
@@ -151,22 +161,31 @@ export interface CollectionSave {
   added_at: string;
 }
 
-export interface CollectionMember {
-  id: string;
-  collection_id: string;
+export interface BoardMember {
   user_id: string;
+  name: string | null;
+  avatar_url: string | null;
   role: "owner" | "member";
   joined_at: string;
 }
 
-export interface CollectionSaveReaction {
-  id: string;
-  collection_id: string;
+export interface BoardReaction {
   save_id: string;
   user_id: string;
   reaction: "in" | "pass";
   created_at: string;
 }
+
+export interface BoardLocation {
+  place_name: string | null;
+  lat: number | null;
+  lng: number | null;
+  city: string | null;
+  google_place_id: string | null;
+}
+
+/** Own saves come in full; other members' saves are reduced to the public subset. */
+export type BoardSave = Partial<Save> & { id: string; location: BoardLocation | null };
 
 export interface UserRule {
   id: string;
@@ -183,16 +202,12 @@ export interface UserRule {
 export interface ParsedRuleLogic {
   conditions: RuleCondition[];
   condition_logic: "AND" | "OR";
-  action: {
-    set_category: SaveCategory | null;
-    set_tags?: string[];
-    add_to_board?: string | null;
-  };
+  action: { set_category: SaveCategory };
 }
 
 export interface RuleCondition {
-  field: "caption" | "username" | "url" | "platform" | "time_of_day" | "day_of_week";
-  operator: "contains" | "equals" | "matches_regex" | "before" | "after" | "is";
+  field: "caption" | "username" | "url" | "platform";
+  operator: "contains" | "not_contains" | "equals";
   value: string | string[];
 }
 
@@ -242,14 +257,6 @@ export interface SaveLocation {
   city: string | null;
   country: string | null;
   google_place_id: string | null;
-  created_at: string;
-}
-
-export interface UserEvent {
-  id: string;
-  user_id: string;
-  type: UserEventType;
-  date: string;
   created_at: string;
 }
 

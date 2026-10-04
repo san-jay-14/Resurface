@@ -2,8 +2,7 @@ import * as Notifications from "expo-notifications";
 import { AppRegistry } from "react-native";
 
 import { ensureAndroidChannel } from "@/lib/notifications";
-import { createPendingSave, detectPlatform, triggerEnrich } from "@/lib/saves";
-import { supabase } from "@/lib/supabase";
+import { enqueueWithShareToken } from "@/lib/shareToken";
 
 type ShareData = { url: string };
 
@@ -26,36 +25,19 @@ async function headlessShareHandler({ url }: ShareData) {
   await new Promise((r) => setTimeout(r, 1000));
 
   try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session) {
-      // User hasn't logged in yet — fail silently, no notification spam
-      return;
-    }
-
-    const platform = detectPlatform(url);
-
-    const save = await withRetry(() =>
-      createPendingSave({ userId: session.user.id, url, sourcePlatform: platform })
-    );
-
-    // Fire enrichment — do NOT await, it runs server-side
-    if (platform === "instagram") {
-      void supabase.functions.invoke("scrape-instagram", {
-        body: { save_id: save.id, url },
-      });
-    } else {
-      void triggerEnrich(save.id);
-    }
+    // Server-side: canonicalize, dedupe, create the save and queue enrichment. Authenticates with the
+    // scoped share token minted at sign-in (the UI session isn't available to a headless task).
+    const saved = await withRetry(() => enqueueWithShareToken(url));
+    // No token: the user isn't signed in. Fail silently, no notification spam.
+    if (!saved) return;
+    const { saveId } = saved;
 
     await ensureAndroidChannel();
     await Notifications.scheduleNotificationAsync({
       content: {
         title: "Saved to Dibs",
         body: "I'll categorise it in the background.",
-        data: { save_id: save.id },
+        data: { save_id: saveId },
       },
       trigger: null,
     });

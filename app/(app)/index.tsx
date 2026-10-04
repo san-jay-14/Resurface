@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useSavesFeed } from "@/hooks/useSavesFeed";
 import { CategoryIcon, getSaveTitle, PinCard } from "@/components/SaveCard";
 import { getActivityLastSeen } from "@/lib/activity";
 import type { Save, SaveCategory } from "@/lib/database.types";
@@ -24,7 +25,7 @@ import {
   requestLocationPermission,
 } from "@/lib/location";
 import { registerDeviceToken } from "@/lib/notifications";
-import { supabase } from "@/lib/supabase";
+import { fetchPlacesMapSaves } from "@/lib/saves";
 import { useAuth } from "@/providers/AuthProvider";
 
 const CATEGORY_SHORTCUTS: { value: SaveCategory; label: string }[] = [
@@ -128,9 +129,7 @@ export default function Library() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [saves, setSaves] = useState<Save[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { saves, loading, refreshing, refresh } = useSavesFeed(!!session);
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [locationGranted, setLocationGranted] = useState(false);
   const [nearby, setNearby] = useState<NearbySave[]>([]);
@@ -157,45 +156,18 @@ export default function Library() {
   useEffect(() => { void refreshUnreadActivity(); }, [refreshUnreadActivity]);
   useFocusEffect(useCallback(() => { void refreshUnreadActivity(); }, [refreshUnreadActivity]));
 
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  // Unique suffix per mount prevents "cannot add callbacks after subscribe()" when
-  // navigating back to this screen before the previous channel is fully removed.
-  const channelId = useRef(`saves:lib:${Date.now()}`).current;
-
   async function enableLocation() {
     const granted = await requestLocationPermission();
     setLocationGranted(granted);
     if (granted && session) {
-      await detectAndUpdateCity(session.user.id);
+      await detectAndUpdateCity();
       await refreshProfile();
     }
   }
 
   useEffect(() => {
-    if (session) void registerDeviceToken(session.user.id);
+    if (session) void registerDeviceToken();
   }, [session]);
-
-  const fetchSaves = async (quiet = false) => {
-    if (!session) return;
-    if (!quiet) setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("saves")
-        .select("*")
-        .eq("user_id", session.user.id)
-        .eq("archived", false)
-        .order("created_at", { ascending: false });
-      if (error) console.warn("Failed to fetch saves:", error.message);
-      else setSaves((data as Save[]) ?? []);
-    } catch (err) {
-      console.warn("fetchSaves threw:", err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => { void fetchSaves(); }, [session]);
 
   useEffect(() => {
     const placesCount = saves.filter((s) => s.category === "places").length;
@@ -216,20 +188,25 @@ export default function Library() {
     const placeSaves = saves.filter((s) => s.category === "places");
     if (!lat || !lng || placeSaves.length === 0) { setNearby([]); return; }
 
+    let cancelled = false;
     void (async () => {
-      const { data } = await supabase
-        .from("save_locations")
-        .select("save_id, lat, lng, place_name")
-        .in("save_id", placeSaves.map((s) => s.id))
-        .not("lat", "is", null)
-        .not("lng", "is", null);
-
-      const withDistance = (data ?? [])
+      let mapped;
+      try {
+        ({ mapped } = await fetchPlacesMapSaves("places"));
+      } catch {
+        return; // "Near you" is optional; stay quiet when offline.
+      }
+      if (cancelled) return;
+      const byId = new Map(placeSaves.map((p) => [p.id, p]));
+      const withDistance = mapped
         .map((loc) => {
-          const save = placeSaves.find((s) => s.id === loc.save_id);
+          const save = byId.get(loc.id);
           if (!save) return null;
-          const distanceKm = haversineKm(lat, lng, loc.lat as number, loc.lng as number);
-          return { ...save, distanceKm, placeName: loc.place_name as string | null };
+          return {
+            ...save,
+            distanceKm: haversineKm(lat, lng, loc.lat, loc.lng),
+            placeName: loc.location_name as string | null,
+          };
         })
         .filter((x): x is NearbySave => x !== null && x.distanceKm <= 30)
         .sort((a, b) => a.distanceKm - b.distanceKm)
@@ -237,39 +214,8 @@ export default function Library() {
 
       setNearby(withDistance);
     })();
+    return () => { cancelled = true; };
   }, [saves, profile?.current_city_lat, profile?.current_city_lng]);
-
-  useEffect(() => {
-    if (!session) return;
-
-    // Remove stale channel before creating a new one
-    if (channelRef.current) {
-      void supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-
-    const channel = supabase
-      .channel(channelId)
-      .on("postgres_changes", {
-        event: "*", schema: "public", table: "saves",
-        filter: `user_id=eq.${session.user.id}`,
-      }, (payload) => {
-        if (payload.eventType === "INSERT") {
-          setSaves((prev) => [payload.new as Save, ...prev]);
-        } else if (payload.eventType === "UPDATE") {
-          setSaves((prev) => prev.map((s) => s.id === (payload.new as Save).id ? payload.new as Save : s));
-        } else if (payload.eventType === "DELETE") {
-          setSaves((prev) => prev.filter((s) => s.id !== (payload.old as Save).id));
-        }
-      })
-      .subscribe();
-
-    channelRef.current = channel;
-    return () => {
-      void supabase.removeChannel(channel);
-      channelRef.current = null;
-    };
-  }, [session]);
 
   const placesCount = saves.filter((s) => s.category === "places").length;
   const navigateToCard = (id: string) =>
@@ -391,7 +337,7 @@ export default function Library() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); void fetchSaves(true); }}
+              onRefresh={refresh}
               tintColor="#9013BB"
             />
           }

@@ -3,16 +3,18 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@better-auth/expo": "^1.7.7",
+    "@better-auth/infra": "^0.4.14",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
+    "@react-native-google-signin/google-signin": "^16.1.5",
     "@rnmapbox/maps": "^10.3.1",
-    "@supabase/supabase-js": "^2.107.0",
     "babel-preset-expo": "~56.0.0",
+    "better-auth": "^1.7.7",
     "eas-cli": "^20.1.0",
     "expo": "~56.0.8",
     "expo-apple-authentication": "~56.0.4",
-    "expo-auth-session": "~56.0.13",
     "expo-constants": "~56.0.16",
     "expo-crypto": "~56.0.4",
     "expo-dev-client": "~56.0.19",
@@ -20,6 +22,7 @@
     "expo-image-picker": "~56.0.18",
     "expo-linking": "~56.0.13",
     "expo-location": "~56.0.16",
+    "expo-network": "^56.0.5",
     "expo-notifications": "~56.0.15",
     "expo-router": "~56.2.8",
     "expo-secure-store": "~56.0.4",
@@ -51,7 +54,10 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "server:dev": "npm --prefix server run dev",
+    "server:test": "npm --prefix server test",
+    "server:demo": "npm --prefix server run demo"
   },
   "private": true
 }

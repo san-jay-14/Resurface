@@ -1,0 +1,61 @@
+# Render Blueprint for the Resurface API (free web service). See DEPLOY.md.
+# Free web services sleep after 15 minutes without traffic; the cron-job.org pings described in
+# DEPLOY.md keep this one awake and drive the scheduler (Render's free tier has no cron jobs).
+services:
+  - type: web
+    name: dibs-api
+    runtime: docker
+    plan: free
+    region: singapore # keep in the same region as the Neon project
+    rootDir: server
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: PORT
+        value: "8080"
+      - key: APP_SCHEMES
+        value: resurface,dibs
+      # Everything below is a secret or environment-specific: set it in the Render dashboard.
+      - key: PUBLIC_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_DIRECT
+        sync: false
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: TICK_SECRET
+        generateValue: true
+      - key: ADMIN_DASHBOARD_TOKEN
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: APPLE_CLIENT_ID
+        sync: false
+      - key: APPLE_APP_BUNDLE_ID
+        value: com.resurface.app
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_PUBLIC_BASE_URL
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: HIKERAPI_KEY
+        sync: false
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
+      - key: ALERT_WEBHOOK_URL
+        sync: false

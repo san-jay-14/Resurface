@@ -16,9 +16,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { UserRule } from "@/lib/database.types";
 import { appAlert } from "@/providers/AlertProvider";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/providers/AuthProvider";
-import { env } from "@/lib/env";
+import { applyRule, createRule, deleteRule as deleteRuleApi, listRules, setRuleActive } from "@/lib/rules";
+import { getCategoryCounts } from "@/lib/saves";
+import { isApiError, useAuth } from "@/providers/AuthProvider";
 
 // ---------------------------------------------------------------------------
 // Add Rule bottom sheet
@@ -46,63 +46,44 @@ function AddRuleSheet({
     setConfirmation(null);
 
     try {
-      const res = await fetch(
-        `${env.supabaseUrl}/functions/v1/parse-rule`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ rule_text: text.trim(), user_id: session.user.id }),
-        },
+      const rule = await createRule(text.trim());
+      setConfirmation(
+        `Got it — this rule will sort matching saves into ${rule.parsed_logic.action.set_category ?? "the right category"}.`,
       );
-      const json = await res.json() as { ok: boolean; rule?: UserRule; error?: string; parsed_logic?: { action?: { set_category?: string } } };
+      setSavedRuleId(rule.id);
 
-      if (!json.ok || !json.rule) {
-        appAlert(
-          "Couldn't parse that",
-          json.error ?? "Dibs couldn't understand that rule. Try rephrasing it — e.g. 'Put anything from @username into Fashion'",
-        );
-        return;
-      }
-
-      const cat = json.parsed_logic?.action?.set_category ?? json.rule.parsed_logic.action.set_category;
-      setConfirmation(`Got it — this rule will sort matching saves into ${cat ?? "the right category"}.`);
-      setSavedRuleId(json.rule.id);
-
-      const { count } = await supabase
-        .from("saves")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", session.user.id)
-        .eq("archived", false);
-      setTotalSaves(count ?? 0);
+      const counts = await getCategoryCounts().catch(() => ({}));
+      setTotalSaves(Object.values(counts).reduce((sum, n) => sum + (n ?? 0), 0));
 
       onAdded();
-    } catch {
-      appAlert("Couldn't connect", "Your rule wasn't saved — try again?");
+    } catch (err) {
+      if (isApiError(err, "rule_not_understood")) {
+        appAlert(
+          "Couldn't parse that",
+          "Dibs couldn't understand that rule. Try rephrasing it — e.g. 'Put anything from @username into Fashion'",
+        );
+      } else if (isApiError(err) && err.status !== 0) {
+        appAlert("Couldn't add the rule", err.message);
+      } else {
+        appAlert("Couldn't connect", "Your rule wasn't saved — try again?");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleRetroactive = async () => {
-    if (!savedRuleId || !session) return;
+    if (!savedRuleId) return;
     onClose();
     setText("");
     setConfirmation(null);
 
-    fetch(
-      `${env.supabaseUrl}/functions/v1/apply-rule-retroactive`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ rule_id: savedRuleId, user_id: session.user.id }),
-      },
-    ).catch(() => {/* background — ignore */});
+    try {
+      const { updated } = await applyRule(savedRuleId);
+      appAlert("Done", updated === 1 ? "Moved 1 save." : `Moved ${updated} saves.`);
+    } catch {
+      appAlert("Couldn't apply", "The rule is saved; you can apply it again from the list.");
+    }
   };
 
   const handleClose = () => {
@@ -210,13 +191,11 @@ export default function RulesScreen() {
 
   const fetchRules = async () => {
     if (!session) return;
-    const { data } = await supabase
-      .from("user_rules")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .order("priority", { ascending: true })
-      .order("created_at", { ascending: true });
-    setRules((data as UserRule[]) ?? []);
+    try {
+      setRules(await listRules());
+    } catch (err) {
+      console.warn("Failed to load rules:", err);
+    }
     setLoading(false);
   };
 
@@ -225,7 +204,12 @@ export default function RulesScreen() {
   const toggleRule = async (rule: UserRule) => {
     const next = !rule.is_active;
     setRules((prev) => prev.map((r) => r.id === rule.id ? { ...r, is_active: next } : r));
-    await supabase.from("user_rules").update({ is_active: next }).eq("id", rule.id);
+    try {
+      await setRuleActive(rule.id, next);
+    } catch {
+      setRules((prev) => prev.map((r) => r.id === rule.id ? { ...r, is_active: !next } : r));
+      appAlert("Couldn't update", "Check your connection and try again.");
+    }
   };
 
   const deleteRule = (rule: UserRule) => {
@@ -235,7 +219,7 @@ export default function RulesScreen() {
         text: "Delete", style: "destructive",
         onPress: async () => {
           setRules((prev) => prev.filter((r) => r.id !== rule.id));
-          await supabase.from("user_rules").delete().eq("id", rule.id);
+          await deleteRuleApi(rule.id).catch(() => undefined);
         },
       },
     ]);
@@ -245,24 +229,18 @@ export default function RulesScreen() {
     if (!session) return;
     appAlert(
       "Apply to existing saves?",
-      "This will run the rule on all your existing saves in the background.",
+      "This will run the rule on all your existing saves.",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Apply",
-          onPress: () => {
-            fetch(
-              `${env.supabaseUrl}/functions/v1/apply-rule-retroactive`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${session.access_token}`,
-                },
-                body: JSON.stringify({ rule_id: rule.id, user_id: session.user.id }),
-              },
-            ).catch(() => {});
-            appAlert("Running", "The rule is being applied in the background.");
+          onPress: async () => {
+            try {
+              const { updated } = await applyRule(rule.id);
+              appAlert("Done", updated === 1 ? "Moved 1 save." : `Moved ${updated} saves.`);
+            } catch (err) {
+              appAlert("Couldn't apply", isApiError(err) && err.status !== 0 ? err.message : "Try again.");
+            }
           },
         },
       ],

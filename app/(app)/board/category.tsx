@@ -30,10 +30,10 @@ import {
 } from "@/components/SaveCard";
 import { InviteSheet } from "@/components/InviteSheet";
 import { PlacesMap, type PlacesMapHandle } from "@/components/PlacesMap";
-import { getOrCreateCategoryShareCollection } from "@/lib/boardSharing";
+import { shareCategoryBoard } from "@/lib/boards";
 import type { Collection, PlaceSave, Save, SaveCategory, UserSubCategory } from "@/lib/database.types";
-import { fetchPlacesMapSaves } from "@/lib/saves";
-import { supabase } from "@/lib/supabase";
+import { fetchPlacesMapSaves, listSaves, updateSave } from "@/lib/saves";
+import { createSubCategory, deleteSubCategory, listSubCategories } from "@/lib/subCategories";
 import { useAuth } from "@/providers/AuthProvider";
 
 const NEAR_YOU_RADIUS_KM = 30;
@@ -78,10 +78,10 @@ class MapErrorBoundary extends Component<{ children: ReactNode }, { crashed: boo
 const EMOJI_OPTIONS = ["📁", "⭐", "❤️", "🔥", "🌟", "💡", "🎯", "✈️", "🛍️", "🍽️", "🎬", "👗", "📍", "🏖️", "🏔️", "🌿"];
 
 function CreateSubCategoryModal({
-  visible, category, userId,
+  visible, category,
   onClose, onCreated,
 }: {
-  visible: boolean; category: SaveCategory; userId: string;
+  visible: boolean; category: SaveCategory;
   onClose: () => void; onCreated: (sub: UserSubCategory) => void;
 }) {
   const [name, setName] = useState("");
@@ -92,17 +92,17 @@ function CreateSubCategoryModal({
     const trimmed = name.trim();
     if (!trimmed) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from("user_sub_categories")
-      .insert({ user_id: userId, category, name: trimmed, emoji })
-      .select()
-      .single();
-    setLoading(false);
-    if (error) { appAlert("Error", error.message); return; }
-    setName("");
-    setEmoji("📁");
-    onCreated(data as UserSubCategory);
-    onClose();
+    try {
+      const created = await createSubCategory(category, trimmed, emoji);
+      setName("");
+      setEmoji("📁");
+      onCreated(created);
+      onClose();
+    } catch (err) {
+      appAlert("Error", err instanceof Error ? err.message : "Couldn't create it. Try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -249,27 +249,22 @@ export default function CategoryBoard() {
   const fetchSaves = useCallback(async (quiet = false) => {
     if (!category || !session) return;
     if (!quiet) setLoading(true);
-    const { data } = await supabase
-      .from("saves")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .eq("category", category)
-      .eq("archived", false)
-      .order("created_at", { ascending: false });
-    setSaves((data as Save[]) ?? []);
+    try {
+      setSaves(await listSaves({ category: category as SaveCategory, archived: false }));
+    } catch (err) {
+      console.warn("Failed to fetch saves:", err);
+    }
     setLoading(false);
     setRefreshing(false);
   }, [category, session]);
 
   const fetchSubCategories = useCallback(async () => {
     if (!category || !session) return;
-    const { data } = await supabase
-      .from("user_sub_categories")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .eq("category", category)
-      .order("created_at", { ascending: true });
-    setSubCategories((data as UserSubCategory[]) ?? []);
+    try {
+      setSubCategories(await listSubCategories(category as SaveCategory));
+    } catch (err) {
+      console.warn("Failed to fetch sub-categories:", err);
+    }
   }, [category, session]);
 
   const MAPPED_CATEGORIES: SaveCategory[] = ["places", "fashion"];
@@ -277,9 +272,13 @@ export default function CategoryBoard() {
   const fetchMapData = useCallback(async () => {
     if (!session || !MAPPED_CATEGORIES.includes(category as SaveCategory)) return;
     setMapLoading(true);
-    const { mapped, unmappedCount: uc } = await fetchPlacesMapSaves(session.user.id, category as SaveCategory);
-    setMapSaves(mapped);
-    setUnmappedCount(uc);
+    try {
+      const { mapped, unmappedCount: uc } = await fetchPlacesMapSaves(category as SaveCategory);
+      setMapSaves(mapped);
+      setUnmappedCount(uc);
+    } catch (err) {
+      console.warn("Failed to fetch map data:", err);
+    }
     setMapLoading(false);
   }, [session, category]);
 
@@ -363,7 +362,7 @@ export default function CategoryBoard() {
     if (!session) return;
     setSharing(true);
     try {
-      const col = await getOrCreateCategoryShareCollection(session.user.id, category as SaveCategory, label);
+      const col = await shareCategoryBoard(category as SaveCategory, label);
       setSharedCollection(col);
       setShareVisible(true);
     } catch (err) {
@@ -475,7 +474,7 @@ export default function CategoryBoard() {
                       {
                         text: "Delete", style: "destructive",
                         onPress: async () => {
-                          await supabase.from("user_sub_categories").delete().eq("id", sub.id);
+                          await deleteSubCategory(sub.id).catch(() => undefined);
                           setSubCategories((prev) => prev.filter((s) => s.id !== sub.id));
                           if (activeSubCat === sub.id) setActiveSubCat(null);
                         },
@@ -553,7 +552,8 @@ export default function CategoryBoard() {
                     onFavorite={async () => {
                       const next = !save.is_favorite;
                       setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: next } : s));
-                      await supabase.from("saves").update({ is_favorite: next }).eq("id", save.id);
+                      await updateSave(save.id, { is_favorite: next }).catch(() =>
+                        setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: !next } : s)));
                     }}
                   />
                 ))}
@@ -567,7 +567,8 @@ export default function CategoryBoard() {
                     onFavorite={async () => {
                       const next = !save.is_favorite;
                       setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: next } : s));
-                      await supabase.from("saves").update({ is_favorite: next }).eq("id", save.id);
+                      await updateSave(save.id, { is_favorite: next }).catch(() =>
+                        setSaves((prev) => prev.map((s) => s.id === save.id ? { ...s, is_favorite: !next } : s)));
                     }}
                   />
                 ))}
@@ -774,7 +775,6 @@ export default function CategoryBoard() {
       <CreateSubCategoryModal
         visible={createVisible}
         category={category as SaveCategory}
-        userId={session?.user.id ?? ""}
         onClose={() => setCreateVisible(false)}
         onCreated={(sub) => setSubCategories((prev) => [...prev, sub])}
       />

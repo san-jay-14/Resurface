@@ -15,20 +15,16 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { appAlert } from "@/providers/AlertProvider";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/providers/AuthProvider";
+import { submitBugReport } from "@/lib/bugReports";
 
 interface Attachment {
   uri: string;
-  uploading: boolean;
-  /** Storage object path once uploaded, e.g. "<userId>/<uuid>.jpg". */
-  path: string | null;
+  mimeType: string;
 }
 
 const MAX_ATTACHMENTS = 4;
 
 export default function ReportBugScreen() {
-  const { session } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -36,30 +32,13 @@ export default function ReportBugScreen() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  const uploadingCount = attachments.filter((a) => a.uploading).length;
-  const canSubmit = message.trim().length > 0 && uploadingCount === 0 && !submitting;
+  const canSubmit = message.trim().length > 0 && !submitting;
 
-  const uploadAsset = async (uri: string, mimeType: string | undefined) => {
-    if (!session) return;
-    const ext = (uri.split(".").pop() ?? "jpg").toLowerCase();
-    const path = `${session.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-    setAttachments((prev) => [...prev, { uri, uploading: true, path: null }]);
-
-    try {
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      const { error } = await supabase.storage
-        .from("bug-reports")
-        .upload(path, blob, { contentType: mimeType ?? "image/jpeg" });
-      if (error) throw error;
-      setAttachments((prev) =>
-        prev.map((a) => (a.uri === uri ? { ...a, uploading: false, path } : a)),
-      );
-    } catch (err) {
-      setAttachments((prev) => prev.filter((a) => a.uri !== uri));
-      appAlert("Upload failed", err instanceof Error ? err.message : "Couldn't attach that file.");
-    }
+  // Attachments are sent together with the report; the server validates type and size.
+  const addAsset = (uri: string, mimeType: string | undefined) => {
+    setAttachments((prev) =>
+      prev.some((a) => a.uri === uri) ? prev : [...prev, { uri, mimeType: mimeType ?? "image/jpeg" }],
+    );
   };
 
   const pickAttachments = async () => {
@@ -80,7 +59,7 @@ export default function ReportBugScreen() {
     });
     if (result.canceled) return;
     for (const asset of result.assets) {
-      void uploadAsset(asset.uri, asset.mimeType);
+      addAsset(asset.uri, asset.mimeType);
     }
   };
 
@@ -89,15 +68,17 @@ export default function ReportBugScreen() {
   };
 
   const submit = async () => {
-    if (!session || !canSubmit) return;
+    if (!canSubmit) return;
     setSubmitting(true);
     try {
-      const { error } = await supabase.from("bug_reports").insert({
-        user_id: session.user.id,
-        message: message.trim(),
-        attachments: attachments.map((a) => a.path).filter((p): p is string => p !== null),
-      });
-      if (error) throw error;
+      await submitBugReport(
+        message.trim(),
+        attachments.map((a, i) => ({
+          uri: a.uri,
+          name: `attachment-${i}.${a.mimeType.split("/")[1] ?? "jpg"}`,
+          type: a.mimeType,
+        })),
+      );
       appAlert("Thanks!", "We've logged your report and will take a look.", [
         { text: "OK", onPress: () => router.back() },
       ]);
@@ -155,16 +136,6 @@ export default function ReportBugScreen() {
           {attachments.map((a) => (
             <View key={a.uri} style={{ width: 84, height: 84, borderRadius: 14, overflow: "hidden", backgroundColor: "#F5F5F5" }}>
               <Image source={{ uri: a.uri }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
-              {a.uploading && (
-                <View
-                  style={{
-                    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-                    alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)",
-                  }}
-                >
-                  <ActivityIndicator color="#fff" size="small" />
-                </View>
-              )}
               <Pressable
                 onPress={() => removeAttachment(a.uri)}
                 style={{

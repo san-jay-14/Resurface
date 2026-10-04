@@ -13,9 +13,11 @@ import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CategoryIcon, CATEGORY_COLORS, CATEGORY_LABEL } from "@/components/SaveCard";
-import type { Collection, SaveCategory } from "@/lib/database.types";
+import { createBoard, listBoards } from "@/lib/boards";
+import type { BoardSummary, SaveCategory } from "@/lib/database.types";
+import { getCategoryCounts } from "@/lib/saves";
 import { appAlert } from "@/providers/AlertProvider";
-import { supabase } from "@/lib/supabase";
+import { isApiError } from "@/providers/AuthProvider";
 import { useAuth } from "@/providers/AuthProvider";
 
 const ALL_CATEGORIES: SaveCategory[] = [
@@ -32,12 +34,10 @@ interface CategoryRow {
 // ---------------------------------------------------------------------------
 function CreateBoardModal({
   visible,
-  userId,
   onCreated,
   onClose,
 }: {
   visible: boolean;
-  userId: string;
   onCreated: () => void;
   onClose: () => void;
 }) {
@@ -48,15 +48,15 @@ function CreateBoardModal({
     const trimmed = name.trim();
     if (!trimmed) return;
     setLoading(true);
-    const { error } = await supabase
-      .from("collections")
-      .insert({ user_id: userId, name: trimmed });
-    setLoading(false);
-    if (error) {
-      appAlert("Error", error.message.includes("unique")
+    try {
+      await createBoard(trimmed);
+    } catch (err) {
+      appAlert("Error", isApiError(err, "board_name_taken")
         ? `A board called "${trimmed}" already exists.`
-        : error.message);
+        : err instanceof Error ? err.message : "Couldn't create the board.");
       return;
+    } finally {
+      setLoading(false);
     }
     setName("");
     onCreated();
@@ -105,7 +105,7 @@ export default function BoardsScreen() {
   const insets = useSafeAreaInsets();
 
   const [categories, setCategories] = useState<CategoryRow[]>([]);
-  const [collections, setCollections] = useState<Collection[]>([]);
+  const [collections, setCollections] = useState<BoardSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [createVisible, setCreateVisible] = useState(false);
 
@@ -113,33 +113,19 @@ export default function BoardsScreen() {
     if (!session) return;
     setLoading(true);
 
-    // Category save counts
-    const catPromises = ALL_CATEGORIES.map(async (cat) => {
-      const { count } = await supabase
-        .from("saves")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", session.user.id)
-        .eq("category", cat)
-        .eq("archived", false);
-      return { category: cat, count: count ?? 0 };
-    });
-
-    // Custom collections with save counts
-    const colRes = await supabase
-      .from("collections")
-      .select("*, collection_saves(count)")
-      .eq("user_id", session.user.id)
-      .order("name");
-
-    const [catRows, colData] = await Promise.all([Promise.all(catPromises), colRes]);
-
-    setCategories(catRows.filter((r) => r.count > 0));
-    setCollections(
-      (colData.data ?? []).map((c) => ({
-        ...c,
-        save_count: (c.collection_saves as { count: number }[])?.[0]?.count ?? 0,
-      })) as Collection[],
-    );
+    try {
+      // One call for every category count, one for the boards (owned and joined).
+      const [counts, boards] = await Promise.all([getCategoryCounts(), listBoards()]);
+      setCategories(
+        ALL_CATEGORIES.map((category) => ({ category, count: counts[category] ?? 0 })).filter(
+          (r) => r.count > 0,
+        ),
+      );
+      // Category "shadow" boards exist only to share a category; the category row already covers them.
+      setCollections(boards.filter((b) => !(b.source_category && b.role === "owner")));
+    } catch (err) {
+      console.warn("Failed to load boards:", err);
+    }
     setLoading(false);
   }, [session]);
 
@@ -149,7 +135,7 @@ export default function BoardsScreen() {
     router.push({ pathname: "/(app)/board/category", params: { category: cat } } as never);
   };
 
-  const navigateToCollection = (col: Collection) => {
+  const navigateToCollection = (col: BoardSummary) => {
     router.push({ pathname: "/(app)/board/[id]", params: { id: col.id, name: col.name } } as never);
   };
 
@@ -246,7 +232,6 @@ export default function BoardsScreen() {
 
       <CreateBoardModal
         visible={createVisible}
-        userId={session?.user.id ?? ""}
         onCreated={load}
         onClose={() => setCreateVisible(false)}
       />
