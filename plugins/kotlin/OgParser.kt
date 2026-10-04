@@ -8,13 +8,13 @@ import org.json.JSONObject
  * re-validates everything, so this only has to be good enough to be useful.
  */
 object OgParser {
-    private val META_TAG = Regex("<meta\s[^>]*>", RegexOption.IGNORE_CASE)
-    private val ATTR = Regex("([a-zA-Z:_-]+)\s*=\s*(?:\"([^\"]*)\"|'([^']*)')")
+    private val META_TAG = Regex("<meta\\s[^>]*>", RegexOption.IGNORE_CASE)
+    private val ATTR = Regex("([a-zA-Z:_-]+)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)')")
 
     // 1,234 likes, 56 comments - username on October 3, 2026: "caption".
     private val DESCRIPTION = Regex(
-        "^(?:[\d.,]+[KkMm]? likes?,\s*)?(?:[\d.,]+[KkMm]? comments?\s*)?-?\s*" +
-            "([A-Za-z0-9._]{1,30}) on [^:\"]{3,40}:\s*\"([\s\S]*?)\"\.?\s*$"
+        "^(?:[\\d.,]+[KkMm]? likes?,\\s*)?(?:[\\d.,]+[KkMm]? comments?\\s*)?-?\\s*" +
+            "([A-Za-z0-9._]{1,30}) on [^:\"]{3,40}:\\s*\"([\\s\\S]*?)\"\\.?\\s*$"
     )
 
     fun parse(html: String, shortcode: String): JSONObject? {
@@ -47,7 +47,7 @@ object OgParser {
             .replace("&quot;", "\"").replace("&#39;", "'").replace("&#039;", "'")
             .replace("&lt;", "<").replace("&gt;", ">")
         out = Regex("&#x([0-9a-fA-F]+);").replace(out) { codePoint(it.groupValues[1].toInt(16)) }
-        out = Regex("&#(\d+);").replace(out) { codePoint(it.groupValues[1].toInt()) }
+        out = Regex("&#(\\d+);").replace(out) { codePoint(it.groupValues[1].toInt()) }
         return out.replace("&amp;", "&")
     }
 

@@ -28,7 +28,7 @@ class DeviceMetaFetcher(context: Context, client: OkHttpClient) {
         private const val WALL_LIMIT = 3
         private const val DISABLE_MS = 24L * 60 * 60 * 1000
         private val SHORTCODE =
-            Regex("instagram\.com/(?:[A-Za-z0-9._]+/)?(?:p|reel|reels|tv)/([A-Za-z0-9_-]{5,})")
+            Regex("instagram\\.com/(?:[A-Za-z0-9._]+/)?(?:p|reel|reels|tv)/([A-Za-z0-9_-]{5,})")
         private val HOSTS = setOf("instagram.com", "www.instagram.com")
     }
 
