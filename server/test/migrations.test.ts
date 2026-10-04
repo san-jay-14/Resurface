@@ -22,6 +22,7 @@ describe("schema migrations", () => {
       "0002_core.sql",
       "0003_pipeline.sql",
       "0004_seed_calendar.sql",
+      "0005_ig_resolver.sql",
     ]);
   });
 

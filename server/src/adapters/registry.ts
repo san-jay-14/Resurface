@@ -23,10 +23,15 @@ export function createRegistry(deps: {
   fetch: typeof fetch;
   resolveDns: Resolver;
   hiker: HikerClient;
+  igProviderOrder?: string[];
   youtube: YoutubeApiClient;
 }): AdapterRegistry {
   const adapters: PlatformAdapter[] = [
-    createInstagramAdapter({ fetch: deps.fetch, hiker: deps.hiker }),
+    createInstagramAdapter({
+      fetch: deps.fetch,
+      hiker: deps.hiker,
+      ...(deps.igProviderOrder ? { providerOrder: deps.igProviderOrder } : {}),
+    }),
     createYoutubeAdapter({ youtube: deps.youtube }),
     createWebAdapter({ fetch: deps.fetch, resolveDns: deps.resolveDns }), // keep last
   ];

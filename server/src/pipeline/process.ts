@@ -21,6 +21,7 @@ import {
   writeNegative,
   writeOk,
 } from "../db/repos/pipelineCache.ts";
+import { getOwnSubmission } from "../db/repos/deviceMeta.ts";
 import {
   enqueueFramesJob,
   killJob,
@@ -41,7 +42,13 @@ import {
 } from "./cache.ts";
 import { ClassificationInvalid, type Classification } from "./classify.ts";
 import type { PipelineContext } from "./context.ts";
-import { backoffMs, nextPacificMidnight, nextUtcMidnight, ProviderUnavailable } from "./health.ts";
+import {
+  type Availability,
+  backoffMs,
+  nextPacificMidnight,
+  nextUtcMidnight,
+  ProviderUnavailable,
+} from "./health.ts";
 import { runLadder } from "./ladder.ts";
 import { emit, errMessage, type RunCtx, traced } from "./trace.ts";
 
@@ -61,6 +68,11 @@ export interface Target {
   userId?: string | null;
   jobId?: number | null;
   attempts: number;
+  /**
+   * Set by prepare() when the metadata came from the user's own (untrusted) device submission. Such
+   * metadata may finalize this user's save but must never reach a globally shared cache.
+   */
+  metaSource?: "device";
   stage: "fetch" | "refresh";
   /** false for dashboard dry-runs and refresh: analysis is cached but no save is touched. */
   writeback: boolean;
@@ -127,6 +139,21 @@ export async function prepare(ctx: PipelineContext, run: RunCtx, t: Target): Pro
       });
       return { kind: "meta", meta: row.meta, stale: false };
     }
+    // The user's own device-fetched metadata (untrusted): saves a provider call for THIS save only.
+    // It sits after the trusted cache and before the negative cache and the provider gate.
+    if (t.userId && adapter.fromDevice) {
+      const own = await getOwnSubmission(db, t.userId, t.platform, t.contentId);
+      if (own?.text) {
+        t.metaSource = "device";
+        emit(
+          run,
+          "device_meta",
+          "ok",
+          "using this user's device-fetched metadata — no provider call (not shared with other users)",
+        );
+        return { kind: "meta", meta: own, stale: false };
+      }
+    }
     if (isNegativeFresh(row, now)) {
       emit(run, "post_cache", "ok", `negative cache hit (${row.status}) — not refetching`, {
         meta: { hit: true },
@@ -139,7 +166,16 @@ export async function prepare(ctx: PipelineContext, run: RunCtx, t: Target): Pro
   }
 
   // Provider gate: breaker open or budget spent -> serve stale cache, else wait it out.
-  const av = await ctx.health.availability(adapter.policy.provider);
+  // With a provider chain the gate only closes when EVERY provider is unavailable; the adapter skips
+  // the closed ones. An empty chain skips the gate: the fetch fails fast and the save degrades to
+  // whatever the device supplied (thumbnail-only).
+  const providers = adapter.policy.providers ?? [adapter.policy.provider];
+  const avail = await Promise.all(providers.map((p) => ctx.health.availability(p)));
+  const closed = avail.filter((a) => !a.ok);
+  const av: Availability =
+    providers.length && closed.length === providers.length
+      ? closed.reduce((a, b) => (!a.ok && !b.ok && b.until < a.until ? b : a))
+      : { ok: true };
   if (!av.ok) {
     const stale = t.stage === "fetch" ? staleMeta(row, now) : null;
     if (stale) {
@@ -353,7 +389,7 @@ export async function fetchAndCache(
           meta,
           raw: raw.payload,
           contentHash: contentHash(meta),
-          provider: adapter.policy.provider,
+          provider: raw.provider ?? adapter.policy.provider,
           expiresAt: addDays(now, adapter.policy.metaTtlDays),
           purgeAfter: addDays(now, adapter.policy.maxRetentionDays),
         }),
@@ -453,25 +489,35 @@ export async function resolveAndStore(
     );
   }
 
-  await traced(
-    run,
-    "analysis_write",
-    () =>
-      upsertAnalysis(db, {
-        platform: t.platform,
-        contentId: t.contentId,
-        promptVersion: config.pipeline.promptVersion,
-        model: config.pipeline.classifierModel,
-        category: c.category,
-        confidence: c.confidence,
-        spots,
-        resolvedBy: rung,
+  // Analysis derived from a user's own device metadata is private to that save: caching it would let
+  // one forged caption decide the category every other user gets for this post.
+  if (t.metaSource === "device") {
+    emit(
+      run,
+      "analysis_write",
+      "skip",
+      "device-sourced metadata is untrusted — analysis not shared",
+    );
+  } else
+    await traced(
+      run,
+      "analysis_write",
+      () =>
+        upsertAnalysis(db, {
+          platform: t.platform,
+          contentId: t.contentId,
+          promptVersion: config.pipeline.promptVersion,
+          model: config.pipeline.classifierModel,
+          category: c.category,
+          confidence: c.confidence,
+          spots,
+          resolvedBy: rung,
+        }),
+      () => ({
+        message: `cached analysis (${c.category} @ ${Math.round(c.confidence * 100)}%, resolved_by=${rung})`,
+        meta: { resolved_by: rung },
       }),
-    () => ({
-      message: `cached analysis (${c.category} @ ${Math.round(c.confidence * 100)}%, resolved_by=${rung})`,
-      meta: { resolved_by: rung },
-    }),
-  );
+    );
 
   const saveId = t.saveId;
   if (t.writeback && saveId) {

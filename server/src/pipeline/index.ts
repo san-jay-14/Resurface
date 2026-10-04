@@ -19,6 +19,7 @@ export function createPipelineContext(base: BaseDeps): PipelineContext {
     fetch: base.fetch,
     resolveDns: base.resolveDns,
     hiker,
+    igProviderOrder: base.config.providers.igProviderOrder,
     youtube,
   });
   const places = createPlaces({ config: base.config, fetch: base.fetch, health, now: base.now });

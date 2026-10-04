@@ -77,6 +77,11 @@ const schema = z.object({
   GOOGLE_PLACES_API_KEY: optionalString,
   ALERT_WEBHOOK_URL: optionalString,
   CANARY_IG_SHORTCODE: optionalString,
+  // Extra stable public posts, comma-separated; probed through every enabled Instagram provider.
+  CANARY_IG_SHORTCODES: optionalString,
+  // Ordered, comma-separated Instagram metadata providers ("hikerapi"). Empty disables them all and
+  // the pipeline degrades to device metadata / thumbnail-only. Unknown names fail fast at boot.
+  IG_PROVIDER_ORDER: z.string().default("hikerapi"),
   CANARY_YT_ID: z.string().default("jNQXAC9IVRw"),
 
   // Classifier / pipeline tuning
@@ -150,8 +155,9 @@ export interface Config {
     placesKey: string | undefined;
     alertWebhookUrl: string | undefined;
     expoAccessToken: string | undefined;
+    igProviderOrder: string[];
   };
-  canary: { igShortcode: string | undefined; ytId: string };
+  canary: { igShortcodes: string[]; ytId: string };
   pipeline: {
     classifierModel: string;
     rulesModel: string;
@@ -183,6 +189,9 @@ export class ConfigError extends Error {
 }
 
 const MIN_SECRET = 32;
+
+/** Instagram metadata providers the server knows how to build (see adapters/instagram.ts). */
+export const IG_PROVIDER_NAMES = ["hikerapi"] as const;
 
 export function loadConfig(source: Record<string, string | undefined> = process.env): Config {
   const parsed = schema.safeParse(source);
@@ -222,6 +231,16 @@ export function loadConfig(source: Record<string, string | undefined> = process.
     problems.push(
       "R2_* settings must be provided together (ACCOUNT_ID, ACCESS_KEY_ID, SECRET_ACCESS_KEY, BUCKET, PUBLIC_BASE_URL)",
     );
+  }
+  const igOrder = e.IG_PROVIDER_ORDER.split(",")
+    .map((n) => n.trim().toLowerCase())
+    .filter(Boolean);
+  for (const n of igOrder) {
+    if (!(IG_PROVIDER_NAMES as readonly string[]).includes(n)) {
+      problems.push(
+        `IG_PROVIDER_ORDER: unknown provider "${n}" (known: ${IG_PROVIDER_NAMES.join(", ")})`,
+      );
+    }
   }
   if (problems.length) throw new ConfigError(problems);
 
@@ -287,8 +306,18 @@ export function loadConfig(source: Record<string, string | undefined> = process.
       placesKey: e.GOOGLE_PLACES_API_KEY,
       alertWebhookUrl: e.ALERT_WEBHOOK_URL,
       expoAccessToken: e.EXPO_ACCESS_TOKEN,
+      igProviderOrder: igOrder,
     },
-    canary: { igShortcode: e.CANARY_IG_SHORTCODE, ytId: e.CANARY_YT_ID },
+    canary: {
+      igShortcodes: [
+        ...new Set(
+          [e.CANARY_IG_SHORTCODE, ...(e.CANARY_IG_SHORTCODES ?? "").split(",")]
+            .map((c) => c?.trim())
+            .filter((c): c is string => !!c),
+        ),
+      ],
+      ytId: e.CANARY_YT_ID,
+    },
     pipeline: {
       classifierModel: e.CLASSIFIER_MODEL,
       rulesModel: e.RULES_MODEL,

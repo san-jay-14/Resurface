@@ -3,12 +3,15 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { once } from "node:events";
+import { ProviderUnavailable } from "../pipeline/health.ts";
 import type { HikerClient } from "../providers/hikerapi.ts";
+import { instagramDeviceMeta } from "./instagramDevice.ts";
 import { filterComments, parseHashtags, type RawComment } from "./comments.ts";
 import {
   AcquireBlocked,
   NotFound,
   type PlatformAdapter,
+  ProviderError,
   type PostMeta,
   type RawResult,
   SchemaDrift,
@@ -17,8 +20,10 @@ import {
 } from "./types.ts";
 
 /**
- * Instagram adapter. Metadata comes only from HikerAPI (see providers/hikerapi.ts); there is
- * deliberately no scraper here.
+ * Instagram adapter. Metadata comes only from the paid providers in IG_PROVIDER_ORDER (today just
+ * HikerAPI, see providers/hikerapi.ts); there is deliberately no scraper and no Instagram login here.
+ * Every provider must return the media payload in the shape normalize() reads (the private-API media
+ * object), so adding one is a client in providers/ plus one entry in `known` below.
  */
 const HOSTS = new Set(["instagram.com", "www.instagram.com", "m.instagram.com"]);
 const SHORTCODE = /^[A-Za-z0-9_-]{5,}$/;
@@ -77,7 +82,40 @@ function num(v: unknown): number | undefined {
 export function createInstagramAdapter(deps: {
   fetch: typeof fetch;
   hiker: HikerClient;
+  /** Enabled providers, tried in order. Defaults to ["hikerapi"]; [] disables every provider. */
+  providerOrder?: string[];
 }): PlatformAdapter {
+  const known: Record<string, HikerClient> = { hikerapi: deps.hiker };
+  const chain = (deps.providerOrder ?? ["hikerapi"]).flatMap((name) =>
+    known[name] ? [{ name, client: known[name] }] : [],
+  );
+
+  /**
+   * Run `call` against each provider in order. not_found/private are authoritative answers and stop
+   * the chain; provider errors and open breakers move on to the next one. Throws the last real error,
+   * or ProviderUnavailable when every provider was gated.
+   */
+  async function viaChain<T>(
+    call: (p: { name: string; client: HikerClient }) => Promise<T>,
+  ): Promise<T> {
+    if (!chain.length) {
+      throw new ProviderError("blocked", undefined, undefined, "no Instagram provider enabled");
+    }
+    let failure: ProviderError | undefined;
+    let gated: ProviderUnavailable | undefined;
+    for (const p of chain) {
+      try {
+        return await call(p);
+      } catch (e) {
+        if (e instanceof ProviderUnavailable) {
+          if (!gated || e.until < gated.until) gated = e;
+        } else if (e instanceof ProviderError) failure = e;
+        else throw e;
+      }
+    }
+    throw failure ?? (gated as ProviderUnavailable);
+  }
+
   return {
     id: "instagram",
     match: (u) => HOSTS.has(u.hostname.toLowerCase()),
@@ -92,7 +130,19 @@ export function createInstagramAdapter(deps: {
     },
 
     fetchMeta: (contentId): Promise<RawResult> =>
-      deps.hiker.fetchMediaByUrl(igCanonicalUrl(contentId), contentId),
+      viaChain(async (p) => {
+        const r = await p.client.fetchMediaByUrl(igCanonicalUrl(contentId), contentId);
+        return r.status === "ok" ? { ...r, provider: p.name } : r;
+      }),
+
+    fromDevice: (contentId, raw) => instagramDeviceMeta(contentId, igCanonicalUrl(contentId), raw),
+
+    probes: () =>
+      chain.map((p) => ({
+        name: p.name,
+        fetch: (contentId: string) =>
+          p.client.fetchMediaByUrl(igCanonicalUrl(contentId), contentId),
+      })),
 
     normalize(raw, contentId): PostMeta {
       const m = raw.payload as Record<string, unknown>;
@@ -163,7 +213,7 @@ export function createInstagramAdapter(deps: {
     async fetchComments(contentId, meta) {
       const mediaId = meta.extras.mediaId as string | undefined;
       if (!mediaId) return [];
-      const rows = await deps.hiker.fetchCommentsRaw(mediaId, contentId);
+      const rows = await viaChain((p) => p.client.fetchCommentsRaw(mediaId, contentId));
       const raw: RawComment[] = rows.map((r) => {
         const c = r as Record<string, unknown>;
         const cu = c.user as Record<string, unknown> | undefined;
@@ -217,7 +267,8 @@ export function createInstagramAdapter(deps: {
     },
 
     policy: {
-      provider: "hikerapi",
+      provider: chain[0]?.name ?? "none",
+      providers: chain.map((p) => p.name),
       metaTtlDays: 30,
       maxRetentionDays: 30,
       negativeTtlHours: 24,

@@ -59,9 +59,12 @@ const withGradle = (config) =>
       throw new Error("EXPO_PUBLIC_API_URL must be set to prebuild the Android share worker.");
     }
     const field = `buildConfigField "String", "API_URL", "\\"${apiUrl}\\""`;
-    // Idempotent: drop any previous (or legacy) fields, then add the current one.
+    // Logged-out Instagram metadata fetch on the device. OFF until the Phase 0 spike
+    // (docs/ig-device-fetch-spike.md) says Go; then build with IG_DEVICE_FETCH=true.
+    const deviceField = `buildConfigField "boolean", "IG_DEVICE_FETCH", "${process.env.IG_DEVICE_FETCH === "true"}"`;
+    // Idempotent: drop any previous (or legacy) fields, then add the current ones.
     gradle = gradle.replace(
-      /^[ \t]*buildConfigField "String", "(SUPABASE_URL|SUPABASE_ANON_KEY|API_URL)".*\n/gm,
+      /^[ \t]*buildConfigField "(String|boolean)", "(SUPABASE_URL|SUPABASE_ANON_KEY|API_URL|IG_DEVICE_FETCH)".*\n/gm,
       "",
     );
     gradle = gradle.replace(
@@ -69,7 +72,7 @@ const withGradle = (config) =>
       (m, indent) =>
         m.replace(
           `${indent}}`,
-          `${indent}    ${field}\n${indent}}` +
+          `${indent}    ${field}\n${indent}    ${deviceField}\n${indent}}` +
             (gradle.includes("buildConfig = true")
               ? ""
               : `\n    buildFeatures {\n${indent}    buildConfig = true\n${indent}}`),
@@ -173,7 +176,9 @@ class SaveWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
         val notif = NotificationHelper(applicationContext)
         try {
             val token = readShareToken() ?: return@withContext Result.failure()
-            val saveId = enqueue(url, token)
+            // Best effort: one plain logged-out GET (6s cap), first attempt only. Null on any failure.
+            val device = if (runAttemptCount == 0) DeviceMetaFetcher(applicationContext, http).fetchFor(url) else null
+            val saveId = enqueue(url, token, device)
             notif.showSuccess(saveId)
             Result.success()
         } catch (e: IOException) {
@@ -201,12 +206,14 @@ class SaveWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
 
     // One server-side entry point: canonicalizes the URL, dedupes, creates the save and
     // queues enrichment. Idempotent, so WorkManager retries cannot create duplicates.
-    private fun enqueue(url: String, token: String): String {
+    private fun enqueue(url: String, token: String, device: JSONObject?): String {
+        val body = JSONObject().put("url", url)
+        if (device != null) body.put("device_meta", device)
         val resp = http.newCall(Request.Builder()
             .url("\$apiUrl/v1/saves/enqueue")
             .addHeader("Authorization", "ShareToken \$token")
             .addHeader("Content-Type", "application/json")
-            .post(JSONObject().put("url", url).toString().toRequestBody(JSON)).build()).execute()
+            .post(body.toString().toRequestBody(JSON)).build()).execute()
         val raw = resp.body?.string() ?: throw IOException("Empty response")
         // 5xx, rate limits and cold starts are retried by WorkManager; 401 (token revoked) and other
         // 4xx (unsupported link) are final.
@@ -275,6 +282,10 @@ const withKotlinFiles = (config) =>
       fs.writeFileSync(path.join(dir, "ShareReceiverActivity.kt"), SHARE_RECEIVER_ACTIVITY);
       fs.writeFileSync(path.join(dir, "SaveWorker.kt"), SAVE_WORKER);
       fs.writeFileSync(path.join(dir, "NotificationHelper.kt"), NOTIFICATION_HELPER);
+      // Plain .kt sources (no template escaping), copied verbatim.
+      for (const f of ["DeviceMetaFetcher.kt", "OgParser.kt"]) {
+        fs.copyFileSync(path.join(__dirname, "kotlin", f), path.join(dir, f));
+      }
       return config;
     },
   ]);

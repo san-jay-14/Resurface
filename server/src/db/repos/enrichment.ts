@@ -78,11 +78,21 @@ export async function markNeedsReview(
 ): Promise<void> {
   // Show whatever we did learn so the user sees a thumbnail while categorising by hand.
   // status 'manual' ends the app's "Sorting" overlay and hands the save back to the user.
+  // Last resort (the "visual" fallback): the user's OWN device submission for this post, if any,
+  // supplies a thumbnail/handle when no provider did. It never leaves this user's row.
   await q.query(
-    `update saves set enrichment_status = 'needs_review', enrichment_reason = $2, status = 'manual',
-            caption = coalesce($3, caption), thumbnail_url = coalesce($4, thumbnail_url),
-            source_username = coalesce($5, source_username)
-      where id = $1 and enrichment_status = any($6::text[])`,
+    `update saves s set enrichment_status = 'needs_review', enrichment_reason = $2, status = 'manual',
+            caption = coalesce($3, s.caption),
+            thumbnail_url = coalesce($4, s.thumbnail_url, d.meta->>'thumbnailUrl'),
+            source_username = coalesce($5, s.source_username, d.meta->'author'->>'handle')
+       from (select $1::uuid as id) k
+       left join lateral (
+         select ds.meta from device_submissions ds
+           join saves s2 on s2.id = k.id
+          where ds.user_id = s2.user_id and ds.platform = s2.platform and ds.content_id = s2.content_id
+          order by ds.created_at desc limit 1
+       ) d on true
+      where s.id = k.id and s.enrichment_status = any($6::text[])`,
     [
       saveId,
       reason,

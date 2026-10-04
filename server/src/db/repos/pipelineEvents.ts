@@ -106,16 +106,3 @@ export async function listEvents(
   );
   return r.rows;
 }
-
-/** The most recent canary results for a platform, newest first. */
-export async function recentCanaryStatuses(
-  q: Queryable,
-  platform: string,
-  n: number,
-): Promise<string[]> {
-  const r = await q.query<{ status: string }>(
-    "select status from pipeline_events where step = 'canary' and platform = $1 order by id desc limit $2",
-    [platform, n],
-  );
-  return r.rows.map((x) => x.status);
-}

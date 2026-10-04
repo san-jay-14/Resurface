@@ -22,7 +22,9 @@ export interface PostMeta {
   extras: Record<string, unknown>; // platform-specific (videoUrl, comments, jsonLdTypes)
 }
 
-export type RawResult = { status: "ok"; payload: unknown } | { status: "not_found" | "private" };
+/** `provider` names the source that answered (recorded in post_cache.provider); defaults to policy.provider. */
+export type RawResult =
+  { status: "ok"; payload: unknown; provider?: string } | { status: "not_found" | "private" };
 
 export type ProviderErrorKind =
   "rate_limited" | "blocked" | "upstream" | "auth" | "budget" | "quota";
@@ -82,6 +84,8 @@ export class NotFound extends Error {
 
 export interface AdapterPolicy {
   provider: string;
+  /** Every provider this adapter may call, in order. Defaults to [provider]; [] means none enabled. */
+  providers?: string[];
   metaTtlDays: number;
   maxRetentionDays: number;
   negativeTtlHours: number;
@@ -105,5 +109,12 @@ export interface PlatformAdapter {
     meta: PostMeta,
     o: { maxBytes: number; timeoutMs: number },
   ): Promise<{ filePath: string; cleanup(): Promise<void> }>;
+  /**
+   * Untrusted metadata the phone fetched itself, validated and sanitized into a PostMeta, or null.
+   * Used only for the submitting user's own save until two distinct users agree (pipeline/deviceSubmit.ts).
+   */
+  fromDevice?(contentId: string, raw: unknown): PostMeta | null;
+  /** One probe per provider, so the canary can exercise each independently. Defaults to fetchMeta. */
+  probes?(): Array<{ name: string; fetch(contentId: string): Promise<RawResult> }>;
   policy: AdapterPolicy;
 }

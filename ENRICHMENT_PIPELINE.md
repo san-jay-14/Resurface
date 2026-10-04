@@ -84,3 +84,52 @@ cross-tenant isolation matrix. They prove the logic, **not** the live providers.
 - **YouTube video acquisition** is the specified stub (always `AcquireBlocked` → thumbnails). Spec open questions 1, 2, 4–7 (derived-data policy, coordinate storage, Batch pricing, quota table) still need checking against current vendor docs.
 - DNS rebinding: `fetch` re-resolves the host, so the SSRF check is per hop, not IP-pinned.
 - **Spend:** HikerAPI, Anthropic and Google Places are usage-billed and not covered by any free tier; daily caps default to $5 each (`BUDGET_*`). Lower them for a hard ceiling.
+
+## Instagram resolver (device metadata, provider chain, canary)
+
+Implements "dibs. Instagram Resolver Service" (Oct 4, 2026) on top of the pipeline above, adapted to this
+stack (Hono + Neon instead of Supabase Edge Functions; the existing `post_cache`, breaker, canary and
+`pipeline_events` stand in for `ig_post_cache`, circuit breaker, canary and `resolve_events`).
+Principle 1 holds everywhere: **logged-out only**, no Instagram login, cookie or account, on the device or
+the server. `test/noInstagramCredentials.test.ts` is the CI grep check.
+
+Resolution order for a save: trusted cache → the user's own device metadata → provider chain → thumbnail-only.
+
+| Piece | Where |
+|---|---|
+| Provider chain, `IG_PROVIDER_ORDER` (default `hikerapi`; empty disables every provider) | `adapters/instagram.ts`, `config.ts` |
+| Device payload validation (caption ≤ 2200, handle regex, https IG/FB CDN thumbnail, control chars stripped, `og:description` parse) | `adapters/instagramDevice.ts` |
+| Store + corroborate | `pipeline/deviceSubmit.ts`, `db/repos/deviceMeta.ts`, table `device_submissions` |
+| Android fetcher (6s, no cookies/auth, 3 wall/429 → off 24h) | `plugins/kotlin/DeviceMetaFetcher.kt`, `OgParser.kt` |
+| Canary per provider, rotating `CANARY_IG_SHORTCODES` | `pipeline/canary.ts`, table `provider_canary` |
+| Weekly stage metrics | view `ig_resolve_runs` |
+
+**Trust rule.** Device metadata is untrusted. It lives in `device_submissions`, never in `post_cache`/`post_analysis`
+(which every user reads). It finalizes only the submitting user's own save, and the analysis derived from it is not
+cached globally. When two *distinct* users submit the same content hash, it is promoted into `post_cache` with
+`provider = 'device'` (7-day TTL), and never displaces a provider row. A forged caption from one user therefore
+cannot reach another.
+
+**Thumbnail-only fallback.** If no provider answers (chain empty, `not_found`/`private`, breaker, dead job), the save
+ends `needs_review` and `markNeedsReview` fills the thumbnail/handle from that user's own device submission, if any.
+The save itself never waits on any provider: `POST /v1/saves/enqueue` only writes rows.
+
+**Device fetch is off by default.** `IG_DEVICE_FETCH` is a build-time flag for the Android share worker. Turn it on
+only after the Phase 0 spike (`node scripts/ig-device-spike.mjs`, report in `docs/ig-device-fetch-spike.md`)
+says Go, and keep it only if it removes ≥ 30% of provider calls.
+
+```bash
+EXPO_PUBLIC_API_URL=https://… IG_DEVICE_FETCH=true npx expo prebuild --platform android --clean
+```
+
+**Metrics** (weekly; `stage` is where the metadata came from):
+
+```sql
+select date_trunc('week', at) as week, stage, count(*) from ig_resolve_runs group by 1, 2 order by 1, 2;
+-- provider calls and spend per day
+select date_trunc('day', created_at) d, count(*), sum(est_cost) from provider_calls where provider = 'hikerapi' group by 1 order by 1;
+```
+
+**Canary.** One post per 15-minute run (rotating, so five canary posts cost the same ~96 calls/day as one), through
+each enabled provider. A provider failing more than half of its last 6 probes raises one alert per 6 hours
+(`canary:<provider>`); consecutive upstream failures also open the breaker (`BREAKER_THRESHOLD`, default 5).

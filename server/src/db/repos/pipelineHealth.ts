@@ -125,9 +125,47 @@ export async function purgeTelemetry(q: Queryable): Promise<void> {
   await q.query("delete from provider_calls where created_at < now() - interval '30 days'");
   await q.query("delete from pipeline_events where created_at < now() - interval '14 days'");
   await q.query("delete from pipeline_alerts where created_at < now() - interval '30 days'");
+  await q.query("delete from provider_canary where checked_at < now() - interval '30 days'");
+  await q.query("delete from device_submissions where created_at < now() - interval '30 days'");
 }
 
 export async function purgeExpiredArchives(q: Queryable): Promise<number> {
   const r = await q.query("delete from archived_saves where expires_at < now()");
   return r.rowCount;
+}
+
+/** One canary probe result per (provider, post); the alert reads the failure rate of the last few. */
+export async function recordCanaryProbe(
+  q: Queryable,
+  r: {
+    provider: string;
+    contentId: string;
+    ok: boolean;
+    latencyMs: number;
+    errorCode: string | null;
+  },
+): Promise<void> {
+  await q.query(
+    `insert into provider_canary (provider, content_id, ok, latency_ms, error_code)
+     values ($1, $2, $3, $4, $5)`,
+    [r.provider, r.contentId, r.ok, r.latencyMs, r.errorCode],
+  );
+}
+
+export interface CanaryProbeRow extends Row {
+  ok: boolean;
+  error_code: string | null;
+}
+
+export async function recentCanaryProbes(
+  q: Queryable,
+  provider: string,
+  limit: number,
+): Promise<CanaryProbeRow[]> {
+  const r = await q.query<CanaryProbeRow>(
+    `select ok, error_code from provider_canary where provider = $1
+      order by checked_at desc, id desc limit $2`,
+    [provider, limit],
+  );
+  return r.rows;
 }

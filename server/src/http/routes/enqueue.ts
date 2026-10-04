@@ -4,11 +4,19 @@ import { findOrCreateSave } from "../../db/repos/enrichment.ts";
 import { enqueueFetchJob } from "../../db/repos/pipelineJobs.ts";
 import { AppError } from "../../errors.ts";
 import { CanonicalizeError, canonicalizeUrl } from "../../pipeline/canonicalize.ts";
+import { submitDeviceMeta } from "../../pipeline/deviceSubmit.ts";
 import type { AppEnv, Services } from "../context.ts";
 import { authenticate, rateLimit } from "../middleware.ts";
 import { jsonBody } from "../validate.ts";
 
-const bodySchema = z.object({ url: z.string().trim().min(1).max(4096) }).strict();
+const bodySchema = z
+  .object({
+    url: z.string().trim().min(1).max(4096),
+    // Optional logged-out metadata fetched by the phone. Untrusted and best effort: a malformed
+    // payload is ignored rather than failing the save (see deviceMeta.ts / ig-device-fetch).
+    device_meta: z.unknown().optional(),
+  })
+  .strict();
 
 const REASON_MESSAGES: Record<CanonicalizeError["reason"], string> = {
   no_url: "That doesn't look like a link.",
@@ -36,7 +44,7 @@ export function enqueueRoutes(svc: Services): Hono<AppEnv> {
     }),
     async (c) => {
       const userId = c.get("userId");
-      const { url } = await jsonBody(c, bodySchema);
+      const { url, device_meta } = await jsonBody(c, bodySchema);
 
       let canonical;
       try {
@@ -53,6 +61,21 @@ export function enqueueRoutes(svc: Services): Hono<AppEnv> {
         contentId: canonical.contentId,
         sourceUrl: canonical.sourceUrl,
       });
+      if (device_meta != null) {
+        try {
+          await submitDeviceMeta(
+            svc.db,
+            svc.registry,
+            userId,
+            canonical.platform,
+            canonical.contentId,
+            device_meta,
+            new Date(),
+          );
+        } catch (e) {
+          svc.log.warn({ err: e instanceof Error ? e.message : String(e) }, "device_meta ignored");
+        }
+      }
       await enqueueFetchJob(svc.db, save.id, canonical.platform, canonical.contentId);
       if (save.created) svc.kicker.kick();
 
